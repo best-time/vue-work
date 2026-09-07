@@ -1,0 +1,109 @@
+/* ========== CSS Reset / 样式初始化 ========== */
+
+/* 统一盒模型，方便计算宽高 */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* 根字号可让 rem 好换算（1rem = 10px） */
+html {
+  font-size: 10px;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
+/* 让 body 撑满视口，统一基础排版 */
+body {
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  background-color: #fff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 列表去圆点 */
+ul, ol {
+  list-style: none;
+}
+
+/* 链接 */
+a {
+  color: inherit;
+  text-decoration: none;
+  background-color: transparent;
+  cursor: pointer;
+}
+
+/* 标题继承字体与行高，去掉默认粗体差异 */
+h1, h2, h3, h4, h5, h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* 图片、视频、嵌入内容自适应，不溢出 */
+img, video, svg, canvas, iframe, embed, object {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 0;
+  vertical-align: middle;
+}
+
+/* 表单统一字体与外观 */
+input, button, select, textarea {
+  font: inherit;
+  color: inherit;
+  background-color: transparent;
+  border: none;
+  outline: none;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* 表格边框合并 */
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* 去除高亮点击背景（移动端） */
+input, textarea, button, select, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 引用 */
+blockquote, q {
+  quotes: none;
+}
+blockquote::before, blockquote::after,
+q::before, q::after {
+  content: '';
+  content: none;
+}
+
+/* 代码字体 */
+code, pre, kbd, samp {
+  font-family: "SF Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
+/* 常用工具类（可选保留） */
+.hidden {
+  display: none !important;
+}
+.clearfix::after {
+  content: '';
+  display: block;
+  clear: both;
+}

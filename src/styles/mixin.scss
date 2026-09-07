@@ -1,0 +1,152 @@
+@mixin no-wrap-more-line($line: 1) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: $line;
+  -webkit-box-orient: vertical;
+}
+
+
+// 定义 Block
+@mixin b($block) {
+  .#{$block} {
+    @content;
+  }
+}
+
+// 定义 Element
+@mixin e($elements...) {
+  @each $element in $elements {
+    &__#{$element} {
+      @content;
+    }
+  }
+}
+
+// 定义 Modifier
+@mixin m($modifiers...) {
+  @each $modifier in $modifiers {
+    &--#{$modifier} {
+      @content;
+    }
+  }
+}
+// 定义 Element + Modifier
+@mixin em($element, $modifiers...) {
+  @each $modifier in $modifiers {
+    &__#{$element}--#{$modifier} {
+      @content;
+    }
+  }
+}
+
+// ==================== Grid 布局 Mixin ====================
+
+// 1. 等分列布局：指定列数，子项自动等分
+//    @include grid-equal(3, 16px);            => 3 列，行列间距均为 16px
+//    @include grid-equal(4, 16px, 24px);      => 4 列，列间距 16px、行间距 24px
+@mixin grid-equal($columns, $gap: 0, $row-gap: null) {
+  display: grid;
+  grid-template-columns: repeat($columns, 1fr);
+  @if $row-gap != null {
+    gap: $gap $row-gap;
+  } @else {
+    gap: $gap;
+  }
+}
+
+// 2. 等分行布局：指定行数，子项自动等分（用于纵向布局）
+//    @include grid-rows-equal(2, 12px);
+@mixin grid-rows-equal($rows, $gap: 0, $column-gap: null) {
+  display: grid;
+  grid-template-rows: repeat($rows, 1fr);
+  @if $column-gap != null {
+    gap: $gap $column-gap;
+  } @else {
+    gap: $gap;
+  }
+}
+
+// 3. 自适应卡片布局：不写死列数，容器足够宽就多放一列，常用于卡片列表
+//    @include grid-auto-fill(240px, 16px);    => 每列最小 240px，自动换行，间距 16px
+//    @include grid-auto-fill(200px, 16px, 1fr) => 列宽在 200px ~ 剩余均分之间
+@mixin grid-auto-fill($min-width, $gap: 0, $max-width: 1fr) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax($min-width, $max-width));
+  gap: $gap;
+}
+
+// 4. 任意列宽布局：手动指定每列宽度，fr 支持任意组合（间距单独用 gap 属性设置）
+//    @include grid-cols(200px, 1fr, 100px);   => 侧栏 200px + 内容自适应 + 右栏 100px
+//    @include grid-cols(1fr, 2fr);            => 1:2 比例布局
+@mixin grid-cols($widths...) {
+  display: grid;
+  grid-template-columns: $widths;
+}
+
+// 5. 命名区域布局（圣杯布局、复杂排版首选）：传入区域定义
+//    @include grid-areas(
+//      "header header header"
+//      "aside main main"
+//      "footer footer footer",
+//      200px 1fr 300px,          // 列宽（可选）
+//      auto 1fr auto,            // 行高（可选）
+//      16px                      // 间距（可选）
+//    );
+//    子项上配合 @include grid-area-name(header) 指定归属
+@mixin grid-areas($areas, $columns: null, $rows: null, $gap: 0) {
+  display: grid;
+  grid-template-areas: $areas;
+  @if $columns != null {
+    grid-template-columns: $columns;
+  }
+  @if $rows != null {
+    grid-template-rows: $rows;
+  }
+  gap: $gap;
+}
+
+// 6. 指定子项归属的区域名（配合 grid-areas 使用）
+//    @include grid-area-name(header);
+@mixin grid-area-name($name) {
+  grid-area: $name;
+}
+
+// 7. 子项跨行跨列：不使用命名区域时，让某个子项占据多行/多列
+//    @include grid-span(2);           => 跨 2 列
+//    @include grid-span(2, 2);        => 跨 2 列 2 行
+//    @include grid-span(null, 3);     => 仅跨 3 行
+@mixin grid-span($column: null, $row: null) {
+  @if $column != null {
+    grid-column: span $column;
+  }
+  @if $row != null {
+    grid-row: span $row;
+  }
+}
+
+// 8. 单元格定位：把子项放到第 n 行第 n 列
+//    @include grid-position(2, 3);    => 第 2 行第 3 列
+@mixin grid-position($row, $column) {
+  grid-row: $row;
+  grid-column: $column;
+}
+
+// 9. 网格内水平垂直居中：最常用的居中方案之一
+//    @include grid-center;
+@mixin grid-center {
+  display: grid;
+  place-items: center;
+}
+
+// 10. 响应式布局：小屏 1 列、中屏 $md 列、大屏 $lg 列，可自定义断点
+//    @include grid-responsive(2, 4, 768px, 1200px, 16px);
+@mixin grid-responsive($md, $lg, $md-breakpoint: 768px, $lg-breakpoint: 1200px, $gap: 0) {
+  @include grid-equal(1, $gap);
+  @media (min-width: $md-breakpoint) {
+    @include grid-equal($md, $gap);
+  }
+  @media (min-width: $lg-breakpoint) {
+    @include grid-equal($lg, $gap);
+  }
+}
