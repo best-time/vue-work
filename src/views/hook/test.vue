@@ -1,63 +1,77 @@
 <template>
-  <div>
-    <div>count: {{ count }}</div>
-    <el-button @click="inc">+</el-button>
-    <el-button @click="toggleFlag">toggle</el-button>
-    <div>mouse x: {{ x }} y: {{ y }}</div>
+  <div class="hook-test">
+    <h2>Composition API Hooks 演示</h2>
+
+    <!-- 基础能力 -->
+    <section class="card">
+      <div>count: {{ count }}</div>
+
+      <el-button size="mini" @click="() => inc()">+</el-button>
+      <el-button size="mini" @click="() => toggleFlag()">toggle: {{ flag }}</el-button>
+
+
+      <div>mouse x: {{ x }} y: {{ y }}</div>
+      <div>now: {{ nowText }}</div>
+    </section>
+
+    <!-- 元素可见性 -->
+    <section class="card">
+      <h3>useElementVisibility —— 模块是否在可视区域</h3>
+      <p>
+        目标模块当前状态：
+        <b :class="['badge', visible ? 'in' : 'out']">
+          {{ visible ? '在可视区域' : '不在可视区域' }}
+        </b>
+      </p>
+      <!-- 滚动容器作为 root 传入，容器内滚动也能正确判断 -->
+      <div class="scroll-box" ref="scrollBoxRef">
+        <div class="spacer">↓ 往下滚动 ↓</div>
+        <div class="target" ref="targetRef">
+          {{ visible ? '👀 我看到你了' : '还没进入可视区域' }}
+        </div>
+      </div>
+
+      <p class="tip">
+        曾经进入过可视区域（onChange 回调，懒加载/曝光埋点常用）：
+        <b>{{ everVisible ? '是' : '否' }}</b>
+      </p>
+    </section>
   </div>
 </template>
 
 <script>
 import {
-  useLocalStorage,
-  useSessionStorage,
-  useDebounceFn,
-  useThrottleFn,
-  useMouse,
-  useNow,
-  useInterval,
   useCounter,
   useToggle,
+  useMouse,
+  useNow,
   useElementVisibility
 } from '@/hooks/vueusePolyfill'
-import { ref } from '@vue/composition-api'
+import { ref, computed } from '@vue/composition-api'
 
 export default {
   setup() {
-    // counter
     const { count, inc } = useCounter(0)
-
-    // toggle
     const { state: flag, toggle: toggleFlag } = useToggle(false)
-
-    // mouse
     const { x, y } = useMouse()
-
-    // storage
-    const lsToken = useLocalStorage('demo_token', '')
-    const ssTmp = useSessionStorage('demo_tmp', 1)
-
-    // debounce
-    const { run: debSearch } = useDebounceFn(() => {
-      console.log('防抖搜索')
-    }, 300)
-
-    // throttle
-    const { run: throttleLog } = useThrottleFn(() => {
-      console.log('节流')
-    }, 500)
-
-    // now
     const now = useNow(1000)
+    const nowText = computed(() => now.value.toLocaleTimeString())
 
-    // interval
-    const { stop: stopTimer } = useInterval(() => {
-      console.log('interval tick')
-    }, 2000)
+    // 目标模块 + 滚动容器，都以 ref 绑定，hook 内部会自动解包
+    const targetRef = ref(null)
+    const scrollBoxRef = ref(null)
 
-    // element visibility
-    const domRef = ref(null)
-    const visible = useElementVisibility(domRef)
+    // threshold: 0.5 —— 元素露出 50% 才判定为可见
+    // root: scrollBoxRef —— 以滚动容器为参照，而不是整个视口
+    const everVisible = ref(false)
+    const visible = useElementVisibility(targetRef, {
+      root: scrollBoxRef,
+      once: true,
+      threshold: 0.5,
+      onChange: (isIn) => {
+        if (isIn) everVisible.value = true
+      }
+    })
 
     return {
       count,
@@ -66,13 +80,64 @@ export default {
       toggleFlag,
       x,
       y,
-      lsToken,
-      now,
-      domRef,
+      nowText,
+      targetRef,
+      scrollBoxRef,
       visible,
-      debSearch,
-      throttleLog
+      everVisible
     }
   }
 }
 </script>
+
+<style scoped>
+.hook-test {
+  padding: 16px;
+}
+.card {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+}
+.badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.badge.in {
+  color: #fff;
+  background: #67c23a;
+}
+.badge.out {
+  color: #fff;
+  background: #909399;
+}
+.scroll-box {
+  height: 240px;
+  overflow-y: auto;
+  border: 1px dashed #dcdfe6;
+  border-radius: 4px;
+}
+.spacer {
+  height: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c0c4cc;
+}
+.target {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px;
+  color: #fff;
+  background: linear-gradient(135deg, #409eff, #79bbff);
+  border-radius: 4px;
+}
+.tip {
+  color: #606266;
+  font-size: 13px;
+}
+</style>

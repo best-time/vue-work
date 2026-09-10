@@ -8,7 +8,8 @@ Vue.use(VueRouter)
 const routes = [
   { path: '/', name: 'Home', component: Home },
   { path: '/about', name: 'About', component: () => import('@/views/aboutPage.vue') },
-  { path: '/chart', name: 'Chart', component: () => import('@/views/chartDemo.vue') }
+  { path: '/chart', name: 'Chart', component: () => import('@/views/chartDemo.vue') },
+  { path: '/hooks', name: 'Hooks', component: () => import('@/views/hook/test.vue') }
 ]
 
 export default new VueRouter({

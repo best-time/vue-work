@@ -1,4 +1,10 @@
 // src/hooks/vueusePolyfill.js
+//
+// 轻量版 VueUse 常用能力（Vue 2.6 + @vue/composition-api）。
+// 只依赖 composition-api，不依赖 @vueuse/core（后者 v10+ 需要 Vue 3）。
+//
+// 元素可见性统一走 src/hooks/useElementVisibility.js，在本文件末尾 re-export，
+// 这样使用方只需要从一个地方 import。
 import { ref, watch, onMounted, onUnmounted } from '@vue/composition-api'
 
 /**
@@ -223,6 +229,7 @@ export function useToggle(initialValue = false) {
   const state = ref(initialValue)
 
   const toggle = (val) => {
+    console.log(val, 'vvv')
     if (val !== undefined) {
       state.value = val
     } else {
@@ -233,31 +240,5 @@ export function useToggle(initialValue = false) {
   return { state, toggle }
 }
 
-/**
- * useElementVisibility 元素是否在视口，IntersectionObserver
- * @param {import('@vue/composition-api').Ref<HTMLElement|null>} target
- * @param {IntersectionObserverInit} options
- */
-export function useElementVisibility(target, options = {}) {
-  const isVisible = ref(false)
-  let observer = null
-
-  const cb = (entries) => {
-    const entry = entries[0]
-    isVisible.value = entry.isIntersecting
-  }
-
-  onMounted(() => {
-    if (!window.IntersectionObserver) return
-    observer = new IntersectionObserver(cb, options)
-    if (target.value) {
-      observer.observe(target.value)
-    }
-  })
-
-  onUnmounted(() => {
-    if (observer) observer.disconnect()
-  })
-
-  return isVisible
-}
+// 元素可见性：统一使用独立实现，支持 root / threshold / once / onChange / 降级
+export { useElementVisibility, useIntersectionObserver } from './useElementVisibility'
