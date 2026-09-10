@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue-demi'
+import { ref, computed } from '@vue/composition-api'
 
 /*
 1. **`useQuery`**：普通查询，

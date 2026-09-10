@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue-demi'
+import { ref, watch } from '@vue/composition-api'
 // import request from './request'
 
 export function useQuery(apiFn, queryParams) {

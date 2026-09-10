@@ -14,7 +14,7 @@
 </template>
 
 <script>
-import { ref } from "vue-demi";
+import { ref } from '@vue/composition-api';
 
 import TitleHeader from "@/components/title-header/index.vue";
 import CardPanel from "@/components/card/index.vue";

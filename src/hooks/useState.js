@@ -1,5 +1,5 @@
 /**
- * useState —— React 风格的响应式状态 Hook（Vue 2.6 + @vue/composition-api）
+ * useState —— React 风格的响应式状态 Hook（Vue 2.6 + vue）
  *
  * 解决两个日常痛点：
  *   1. 想要 React 那种「一个值 + 一个 setter」的写法，但 Vue 里只能手写 ref + 一堆赋值逻辑；

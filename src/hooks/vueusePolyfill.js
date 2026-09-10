@@ -1,6 +1,6 @@
 // src/hooks/vueusePolyfill.js
 //
-// 轻量版 VueUse 常用能力（Vue 2.6 + @vue/composition-api）。
+// 轻量版 VueUse 常用能力（Vue 2.6 + vue）。
 // 只依赖 composition-api，不依赖 @vueuse/core（后者 v10+ 需要 Vue 3）。
 //
 // 元素可见性统一走 src/hooks/useElementVisibility.js，在本文件末尾 re-export，

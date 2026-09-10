@@ -1,5 +1,5 @@
 /**
- * 元素可见性 Hook —— Vue 2.6 + @vue/composition-api
+ * 元素可见性 Hook —— Vue 2.6 + vue
  *
  * 对外提供两个 API：
  *   1. useElementVisibility(target, options) -> Ref<boolean>

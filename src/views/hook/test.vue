@@ -91,53 +91,7 @@ export default {
 </script>
 
 <style scoped>
-.hook-test {
-  padding: 16px;
-}
-.card {
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  border: 1px solid #ebeef5;
-  border-radius: 6px;
-}
-.badge {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 600;
-}
-.badge.in {
-  color: #fff;
-  background: #67c23a;
-}
-.badge.out {
-  color: #fff;
-  background: #909399;
-}
-.scroll-box {
-  height: 240px;
-  overflow-y: auto;
-  border: 1px dashed #dcdfe6;
-  border-radius: 4px;
-}
-.spacer {
-  height: 420px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #c0c4cc;
-}
-.target {
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 8px;
-  color: #fff;
-  background: linear-gradient(135deg, #409eff, #79bbff);
-  border-radius: 4px;
-}
-.tip {
-  color: #606266;
-  font-size: 13px;
+p {
+  font-size: 14px;
 }
 </style>

@@ -5,7 +5,7 @@
 </template>
 
 <script>
-import { ref } from 'vue-demi'
+import { ref } from '@vue/composition-api'
 import CardPanel from '@/components/card/index.vue'
 
 export default {
