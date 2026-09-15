@@ -23,7 +23,7 @@ import {
   onMounted,
   onUnmounted,
   unref
-} from '@vue/composition-api'
+} from 'vue-demi'
 
 const isClient = typeof window !== 'undefined'
 const hasIntersectionObserver = isClient && 'IntersectionObserver' in window
@@ -195,7 +195,7 @@ export function useIntersectionObserver(target, callback, options) {
  * @param {boolean} [options.once=false] 只关心「第一次可见」（懒加载、曝光埋点）
  * @param {boolean} [options.initialValue=false] 初始值
  * @param {(visible: boolean, entry: Object) => void} [options.onChange] 状态变化回调
- * @returns {import('@vue/composition-api').Ref<boolean>} 是否可见
+ * @returns {import('vue-demi').Ref<boolean>} 是否可见
  *
  * @example 基础用法
  * const boxRef = ref(null)

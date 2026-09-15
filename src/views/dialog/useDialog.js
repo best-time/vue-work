@@ -1,9 +1,9 @@
-import { ref } from '@vue/composition-api'
+import { ref } from 'vue-demi'
 import { openDialog } from './fn'
 
 /**
  * 命令式 el‑dialog Hook封装
- * @returns {{ open: Function, close: Function, dialogInst: import('@vue/composition-api').Ref<any> }}
+ * @returns {{ open: Function, close: Function, dialogInst: import('vue-demi').Ref<any> }}
  */
 export function useElDialog() {
   const dialogInst = ref(null)

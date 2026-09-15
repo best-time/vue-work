@@ -1,6 +1,20 @@
-const { defineConfig } = require('@vue/cli-service')
-
-module.exports = defineConfig({
+const SpeedMeasurePlugin = require('speed-measure-webpack-plugin')
+const smp = new SpeedMeasurePlugin()
+module.exports = {
+  // configureWebpack: {
+  //   watchOptions: {
+  //     ignored: ['node_modules', '**/.git'],
+  //     aggregateTimeout: 300, // 文件变更延迟300ms再构建，防抖
+  //     poll: false // 关闭轮询监听（windows/wsl有时会自动开启poll，巨卡）
+  //   }
+  // },
+  devServer: {
+    // 关闭不必要的日志
+    // overlay: {
+    //   warnings: false,
+    //   errors: false
+    // }
+  },
   // transpileDependencies: true,
   chainWebpack: (config) => {
     // ---- 屏蔽 vue-loader 15 的 style0 噪音警告 ----
@@ -45,6 +59,15 @@ module.exports = defineConfig({
         })
       }
     })
+
+    // config.module
+    //   .rule('vue')
+    //   .use('vue-loader')
+    //   .tap((options) => {
+    //     // 替换模板编译器，交给babel处理模板表达式
+    //     options.compiler = require('vue-template-babel-compiler')
+    //     return options
+    //   })
   },
   css: {
   //   preprocessorOptions: {
@@ -56,4 +79,4 @@ module.exports = defineConfig({
       }
     }
   }
-})
+}

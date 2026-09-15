@@ -27,6 +27,8 @@
 
 <script>
 import TitleHeader from "@/components/title-header/index.vue";
+// 静态 import 资源：webpack 与 vite 都会返回 URL 字符串（替代 require）
+import mailIconUrl from "@/assets/imgs/email.svg";
 
 export default {
   name: "OnWayDeliveryCard",
@@ -36,7 +38,7 @@ export default {
   data() {
     return {
       // 替换为你的3D信箱图标实际地址
-      mailIcon: require("@/assets/imgs/email.svg"),
+      mailIcon: mailIconUrl,
       totalCount: 215
     };
   },

@@ -50,7 +50,7 @@
  *   - 为兼容本项目的 babel 配置与同目录 hook 的写法，本文件不使用对象展开（...rest）
  *     与可选链语法。
  */
-import { ref, watch } from '@vue/composition-api'
+import { ref, watch } from 'vue-demi'
 
 function isFn(v) {
   return typeof v === 'function'

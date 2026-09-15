@@ -47,7 +47,7 @@ import {
   useNow,
   useElementVisibility
 } from '@/hooks/vueusePolyfill'
-import { ref, computed } from '@vue/composition-api'
+import { ref, computed } from 'vue-demi'
 
 export default {
   setup() {

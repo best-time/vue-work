@@ -1,4 +1,4 @@
-import { ref } from '@vue/composition-api'
+import { ref } from 'vue-demi'
 
 export function useMutation(mutationFn) {
   const data = ref(null)

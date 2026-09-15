@@ -1,5 +1,5 @@
 // src/components/DialogFn.js
-// Vue 构造器必须从 'vue' 导入；'@vue/composition-api' 的 default 是插件对象
+// Vue 构造器必须从 'vue' 导入；'vue-demi' 的 default 是插件对象
 import Vue from 'vue'
 
 const DialogComponent = {

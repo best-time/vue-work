@@ -1,5 +1,26 @@
+/**
+ * 解析 src/assets 下静态资源的 URL（双打包器兼容）。
+ *
+ * - webpack：require 存在，走动态 require 上下文（webpack 的动态 `new URL` 编译出来的是
+ *   上下文模块调用，返回模块对象而非 URL 字符串，不能用）
+ * - vite：没有 require；`import.meta.glob` 是**构建期转换**（运行时并不存在这个函数，
+ *   所以不能用 `typeof import.meta.glob` 判断），eager 预收集全部资源成「路径 -> URL」表
+ *
+ * 因此只能用 `typeof require` 识别 webpack，让 vite 走默认分支。
+ * @param {string} imageName 文件名，如 "icon-market.svg"
+ * @param {string} [folderPath] assets 下的子目录，默认 "imgs"
+ * @returns {string} 资源 URL
+ */
 export function getAssetsImgByPath(imageName, folderPath = "imgs") {
-  return require(`@/assets/${folderPath}/${imageName}`);
+  if (typeof require === "function") {
+    return require(`@/assets/${folderPath}/${imageName}`);
+  }
+  const mods = import.meta.glob("../assets/**/*", {
+    eager: true,
+    query: "?url",
+    import: "default"
+  });
+  return mods[`../assets/${folderPath}/${imageName}`];
 }
 
 

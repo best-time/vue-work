@@ -5,7 +5,7 @@
 //
 // 元素可见性统一走 src/hooks/useElementVisibility.js，在本文件末尾 re-export，
 // 这样使用方只需要从一个地方 import。
-import { ref, watch, onMounted, onUnmounted } from '@vue/composition-api'
+import { ref, watch, onMounted, onUnmounted } from 'vue-demi'
 
 /**
  * useLocalStorage

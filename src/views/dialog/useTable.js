@@ -1,4 +1,4 @@
-import { ref, reactive } from '@vue/composition-api'
+import { ref, reactive } from 'vue-demi'
 
 /**
  * 通用表格Hook

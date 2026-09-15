@@ -1,4 +1,4 @@
-import { ref, reactive } from '@vue/composition-api'
+import { ref, reactive } from 'vue-demi'
 
 // 全局缓存池
 const queryCache = new Map()
