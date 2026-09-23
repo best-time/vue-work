@@ -17,7 +17,7 @@ export default {
   methods: {
     // ① 基础用法：不写 template、不定义 dialogVisible，直接 await 拿结果
     async openSimple() {
-      const res = await this.$dialog({
+      const res = await this.$_dialog({
         title: '基础函数弹窗',
         component: DemoContent,
         props: { msg: '这是从调用方传入的内容' },
@@ -33,7 +33,7 @@ export default {
 
     // ② beforeClose：确定/取消前异步校验，返回 false 阻止关闭
     async openWithBeforeClose() {
-      const res = await this.$dialog({
+      const res = await this.$_dialog({
         title: '拦截关闭示例',
         component: DemoContent,
         props: {},
@@ -70,10 +70,10 @@ export default {
       return new Promise(resolve => setTimeout(() => resolve(true), 300))
     },
 
-    // ④ 全局快捷确认框（语义同 this.$confirm：确认 resolve，取消 reject）
+    // ④ 全局快捷确认框（语义同 this.$_confirm：确认 resolve，取消 reject）
     async confirmDelete() {
       try {
-        await this.$confirm('确定删除这条记录吗？删除后不可恢复。', '删除确认', {
+        await this.$_confirm('确定删除这条记录吗？删除后不可恢复。', '删除确认', {
           confirmText: '删 除',
           cancelText: '再想想',
           type: 'warning',
@@ -87,20 +87,20 @@ export default {
 
     // ⑤ 单按钮提示：只有"知道了"，无论确定或关闭都 resolve
     async showAlert() {
-      await this.$alert('操作已成功，请继续。', '完成', { confirmText: '好 的' })
+      await this.$_alert('操作已成功，请继续。', '完成', { confirmText: '好 的' })
       this.$message.success('提示已关闭')
     },
 
     // ⑥ 多级弹窗叠加：append-to-body 已内置，再开一层即可
     async openNested() {
-      const first = await this.$dialog({
+      const first = await this.$_dialog({
         title: '第一层弹窗',
         component: DemoContent,
         props: { msg: '第一层，确定后弹出第二层' },
         context: this
       })
       if (first.type === 'confirm') {
-        const second = await this.$dialog({
+        const second = await this.$_dialog({
           title: '第二层弹窗',
           component: DemoContent,
           props: { msg: '第二层内容，基于第一层的结果继续' },

@@ -8,11 +8,11 @@ import 'element-ui/lib/theme-chalk/index.css';
 import './styles/reset.css'
 import './styles/base.scss'
 import '@/components/FunComponent/$dialog'
+import '@/components/VxeTable' // vxe-table 3.6（Vue2 兼容版）+ 全局格式化器 + CommonTable 公共组件
+
 Vue.use(ElementUI)
 
 Vue.config.productionTip = false
-// Vue.config.$dialog = $dialog
-// Vue.config.$dialogWithHandle = $dialogWithHandle
 // 必须在创建根实例前显式安装，否则 setup() 不会被执行
 // （之前只是靠 vue-demi 被 import 时顺带安装，依赖 import 顺序，很脆弱）
 // Vue.use(VueCompositionAPI)

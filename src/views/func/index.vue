@@ -7,7 +7,7 @@
 </template>
 
 <script>
-import DemoContent from '@/components/Funcomponent/DemoContent.vue'
+import DemoContent from '@/components/FunComponent/DemoContent.vue'
 // import { h } from 'vue-demi'
 
 export default {
@@ -15,9 +15,9 @@ export default {
   methods: {
     // ① 基础用法：不写 template、不定义 dialogVisible，直接 await 拿结果
     async openSimple() {
-      const res = await this.$dialog({
+      const res = await this.$_dialog({
         title: '基础函数弹窗',
-        component: () => import('@/components/Funcomponent/DemoContent.vue'),
+        component: () => import('@/components/FunComponent/DemoContent.vue'),
         props: { msg: '这是从调用方传入的内容' },
         dialogProps: { width: '500px', closeOnClickModal: false },
         context: this
@@ -31,7 +31,7 @@ export default {
 
     // ② beforeClose：确定/取消前异步校验，返回 false 阻止关闭
     async openWithBeforeClose() {
-      const res = await this.$dialog({
+      const res = await this.$_dialog({
         title: '拦截关闭示例',
         component: DemoContent,
         props: {},

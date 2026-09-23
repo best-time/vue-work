@@ -12,24 +12,33 @@
       <p>{{ message }}</p>
     </div>
 
-    <!-- 默认插槽：渲染业务内容（支持插槽透传） -->
+    <!-- 业务内容：把容器收到的插槽整体透传给业务组件 -->
     <component
-      v-if="contentComponent"
+      v-if="contentReady && contentComponent"
       :is="contentComponent"
       v-bind="contentProps"
       @confirm="onConfirm"
       @cancel="onCancel"
     >
-      <template v-for="(_, name) in $scopedSlots" :slot="name">
-        <slot :name="name"></slot>
+      <!--
+        插槽透传（Vue 2.6 官方推荐写法）
+        ① 只遍历 $scopedSlots 就够：2.6 已经把所有插槽（普通插槽 + 作用域插槽）
+           统一归一化成函数挂在 $scopedSlots 上，再遍历 $slots 会重复渲染同一批节点。
+        ② v-slot:[name]="scope" 用 v-for 的 name 当动态插槽名，接住业务组件
+           通过 <slot :xxx="数据"> 回传的作用域数据。
+        ③ v-bind="scope" 必须写：少了它，业务组件传上来的作用域数据会在容器这一层被丢掉
+           （插槽函数只能拿到空对象 {}），调用方的 scopedSlots.row(h, scope) 拿不到 row。
+      -->
+      <template v-for="(_, name) in $scopedSlots" v-slot:[name]="scope">
+        <slot :name="name" v-bind="scope"></slot>
       </template>
     </component>
 
     <!-- footer：自定义 footer 走插槽，否则用默认按钮 -->
-    <template v-if="$slots.footer" slot="footer">
+    <template v-if="contentReady && hasFooterSlot" slot="footer">
       <slot name="footer"></slot>
     </template>
-    <div v-else slot="footer" class="func-dialog-footer">
+    <div v-else-if="contentReady" slot="footer" class="func-dialog-footer">
       <el-button v-if="showCancel" @click="onCancel">{{ cancelText }}</el-button>
       <el-button
         type="primary"
@@ -47,12 +56,22 @@
  * 由 $dialog() 动态创建，负责：渲染业务组件、管理 visible、统一关闭逻辑、
  * 支持 beforeClose 拦截、异步确定按钮 loading、插槽透传、自定义 footer。
  * 关闭动画结束后自动销毁实例，避免 DOM 残留和内存泄漏。
+ *
+ * 插槽：容器自身没有模板父级，$slots/$scopedSlots 由 $dialog.js 的 injectSlots()
+ *      在 $mount 之前注入，模板里按普通组件的方式使用即可。
  */
 export default {
   name: 'FuncDialog',
   data() {
     return {
       visible: false,          // 控制 el-dialog 显隐
+      // 插槽内容渲染开关：容器 $mount() 的首次渲染刻意为 false，
+      // open() 时才置 true。原因：插槽函数是惰性执行的，首次渲染发生在
+      // mountDialog() 内部（此时调用方的 const dlg = this.$dialogWithHandle(...)
+      // 还没执行完），若渲染插槽就会执行调用方传入的函数 —— 闭包里引用 dlg
+      // 会报 "Cannot access 'dlg' before initialization"。
+      // 置 true 触发的重渲染走 nextTick，调用方那时已拿到句柄。
+      contentReady: false,
       title: '',               // 弹窗标题
       message: '',             // 纯文本模式下的消息内容
       confirmText: '确 定',    // 默认确定按钮文案
@@ -67,6 +86,13 @@ export default {
       _beforeClose: null       // 关闭前拦截钩子
     }
   },
+  computed: {
+    // 是否自定义 footer。用 in 做存在性判断，不能写 this.$slots.footer：
+    // $slots 上的 getter 是惰性求值的，读了就会立刻执行调用方的插槽函数
+    hasFooterSlot() {
+      return ('footer' in this.$slots) || ('footer' in this.$scopedSlots)
+    }
+  },
   methods: {
     /**
      * 打开弹窗并返回 Promise
@@ -75,6 +101,8 @@ export default {
      *  - dialogProps   {Object}   el-dialog 原生属性透传
      *  - component     {Component}业务组件
      *  - props         {Object}   传给业务组件的 props
+     *  - slots         {Object}   普通插槽：'文案' | VNode | VNode[] | (h) => VNode[]
+     *  - scopedSlots   {Object}   作用域插槽：(h, scope) => VNode[]
      *  - beforeClose   {Function} async (vm, action) => Boolean，返回 false 阻止关闭
      * @returns {Promise<{type:'confirm'|'cancel', data:*}>}
      */
@@ -101,6 +129,7 @@ export default {
       this.contentProps = props
       this._beforeClose = beforeClose
       this.visible = true
+      this.contentReady = true // 此后（nextTick 重渲染）才开始渲染插槽内容，见 data 注释
 
       return new Promise((resolve, reject) => {
         this._resolve = resolve

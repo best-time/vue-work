@@ -15,7 +15,9 @@ module.exports = {
     sourceType: 'module'
   },
   rules: {
+      "vue/no-reserved-keys": "off",
     'vue/multi-word-component-names': 'off',
+    'vue/no-unused-vars': 'off',
 
     'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     'no-console': 'off',
