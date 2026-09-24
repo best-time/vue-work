@@ -16,6 +16,7 @@ export const routes = [
   { path: '/fun1', name: 'Fun-demo1', component: () => import('@/views/func/demo1.vue') },
   { path: '/fun-h-dialog', name: 'FunHDialog', component: () => import('@/components/FunComponent/h-dialog/HDialogDemoPage.vue') },
   { path: '/vxe-table', name: 'VxeTableDemo', component: () => import('@/components/VxeTable/VxeTableDemoPage.vue') },
+  { path: '/grid-box', name: 'GridBoxDemo', component: () => import('@/components/GridBox/GridBoxDemoPage.vue') },
 ]
 
 export default new VueRouter({

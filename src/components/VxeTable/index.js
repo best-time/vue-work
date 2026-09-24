@@ -13,6 +13,10 @@ import VXETable from 'vxe-table'
 import 'vxe-table/lib/index.css'
 import CommonTable from './CommonTable.vue'
 
+// 关键：vxe-table 3.x 的 ESM 入口不会自动注册组件，必须显式 install，
+// 否则 <vxe-grid> / <vxe-table> 会报 Unknown custom element
+Vue.use(VXETable)
+
 // 全局默认参数（对所有 vxe 组件生效）
 if (typeof VXETable.setup === 'function') {
   VXETable.setup({
