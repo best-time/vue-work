@@ -112,6 +112,30 @@
         </template>
       </CommonTable>
     </el-card>
+
+    <!-- ================= 例3：样式定制 —— 蓝底表头 / 无内边框 / 蓝色外边框 ================= -->
+    <el-card shadow="never" class="vxe-demo__card">
+      <div slot="header">
+        例3 · 样式定制：表头蓝底白字 / 去除内边框 / 外边框蓝色
+      </div>
+      <p class="vxe-demo__tip">
+        关键点：<code>border="outer"</code> 只保留外边框（去掉全部内边框）；
+        <code>stripe</code> 行条纹；外边框颜色和表头底色用
+        <code>::v-deep</code> 覆盖
+        <code>.vxe-table--border-line</code> / <code>.vxe-header--column</code>。
+      </p>
+      <div class="blue-table">
+        <CommonTable
+          :data="localRows"
+          :columns="styleColumns"
+          border="outer"
+          stripe
+          show-overflow
+          height="120"
+        >
+        </CommonTable>
+      </div>
+    </el-card>
   </div>
 </template>
 
@@ -121,6 +145,7 @@
  *  例1：本地 data + 表头自定义（插槽表头、titlePrefix/titleSuffix 提示、对齐）+ 单元格/操作列插槽 + 全局 formatter
  *  例2：远程模式 —— 表头筛选（输入筛选 + 多选筛选）、远程排序、远程分页，
  *       CommonTable 的 proxy 会把 { page, sorts, filters } 自动传给 query 函数
+ *  例3：样式定制 —— border="outer" 去内边框、::v-deep 覆盖表头蓝底/外边框蓝色
  */
 
 /* ---------- mock 数据与远程接口（真实项目换成 axios 请求） ---------- */
@@ -302,6 +327,20 @@ export default {
           fixed: "right",
         },
       ],
+      /* ---------- 例3：样式定制（复用 localRows） ---------- */
+      styleColumns: [
+        { type: "seq", width: 50, title: "#" },
+        { field: "name", title: "姓名", minWidth: 120 },
+        { field: "age", title: "年龄", width: 100 },
+        { field: "city", title: "城市", width: 100 },
+        {
+          field: "salary",
+          title: "工资",
+          formatter: "formatMoney",
+          align: "right",
+          width: 130,
+        },
+      ],
       // 展示当前筛选/排序条件
       lastQuery: { city: [], age: null, sort: null },
     };
@@ -379,5 +418,39 @@ export default {
 .vxe-demo__summary {
   color: #c0c4cc;
   font-size: 12px;
+}
+
+/* ---------- 例3：蓝底表头 / 无内边框 / 蓝色外边框 ---------- */
+.blue-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+/* 外边框颜色（border="outer" 时 vxe 用 .vxe-table--border-line 画外框） */
+.blue-table ::v-deep .vxe-table--border-line {
+  border-color: #326fff;
+  /* 关键：容器圆角 + overflow:hidden 会裁掉方形外框的角像素，
+     导致左下/右下角边框断开；给外框同样的圆角即可对齐 */
+  border-radius: 12px;
+}
+/* 表头蓝底白字 */
+.blue-table ::v-deep .vxe-table--header-wrapper {
+  background-color: #326fff;
+}
+.blue-table ::v-deep .vxe-header--column {
+  background-color: #326fff;
+  color: #fff;
+  font-weight: 500;
+}
+/* 表头 hover / 排序图标也保持蓝色系 */
+.blue-table ::v-deep .vxe-header--column:hover {
+  background-color: #2a5df0;
+}
+.blue-table ::v-deep .vxe-cell--sort,
+.blue-table ::v-deep .vxe-cell--filter {
+  color: rgba(255, 255, 255, 0.9);
+}
+/* 偶数行条纹（淡蓝，与蓝表头呼应；vxe 默认是中性灰 #f8f8f9） */
+.blue-table ::v-deep .vxe-body--row.row--stripe {
+  background-color: #f3f7ff;
 }
 </style>
