@@ -136,6 +136,80 @@
       </div>
       <pre class="sty-demo__code">{{ codePlay }}</pre>
     </el-card>
+
+    <!-- ================= ⑨ 动画 ================= -->
+    <el-card shadow="never" class="sty-demo__card">
+      <div slot="header">
+        ⑨ 动画 · <code>transition</code> / <code>transform</code> / <code>animation</code>
+        —— 内联样式也能动起来
+      </div>
+      <p class="sty-demo__tip">
+        内联 style 能表达<strong>过渡</strong>和<strong>动画属性</strong>，但
+        <code>@keyframes</code> 不行 —— 它必须写在 CSS 里（本页用了一个<strong>非 scoped</strong>
+        的 style 块：scoped 块里的关键帧名字会被加后缀，而内联引用的是原始名字，会失效）。
+        也可以用 <code>src/utils/css-in-js</code> 的 <code>keyframes()</code> 生成。
+      </p>
+
+      <!-- ⑨-1 过渡 -->
+      <p class="sty-demo__sub">⑨-1 过渡 · 切状态 + <code>transition</code> 平滑过去</p>
+      <div class="sty-demo__row">
+        <el-button size="small" type="primary" @click="moved = !moved">
+          位移 + 缩放
+        </el-button>
+        <div class="sty-demo__track sty-demo__track--wide">
+          <div :style="moveStyle" class="sty-demo__dot">move</div>
+        </div>
+      </div>
+      <pre class="sty-demo__code">{{ codeMove }}</pre>
+
+      <!-- ⑨-2 缓动对比 -->
+      <p class="sty-demo__sub">⑨-2 缓动对比 · <code>transitionTimingFunction</code></p>
+      <div class="sty-demo__row">
+        <el-button size="small" @click="go = !go">跑一次</el-button>
+        <span class="sty-demo__tip sty-demo__tip--inline">同一段位移，三种缓动曲线</span>
+      </div>
+      <div v-for="e in EASINGS" :key="e.label" class="sty-demo__ease">
+        <span class="sty-demo__ease-label">{{ e.label }}</span>
+        <div class="sty-demo__track">
+          <div :style="ballStyle(e)" class="sty-demo__dot sty-demo__dot--ball"></div>
+        </div>
+      </div>
+      <pre class="sty-demo__code">{{ codeEase }}</pre>
+
+      <!-- ⑨-3 循环动画 + 播放控制 -->
+      <p class="sty-demo__sub">
+        ⑨-3 循环动画 · <code>@keyframes</code> + 用内联 <code>animationPlayState</code> /
+        <code>animationDuration</code> 控制
+      </p>
+      <div class="sty-demo__row">
+        <div :style="pulseStyle" class="sty-demo__pulse"></div>
+        <el-switch v-model="playing" active-text="播放"></el-switch>
+        <span class="sty-demo__field-label">周期</span>
+        <el-slider
+          v-model="duration"
+          :min="0.6"
+          :max="3"
+          :step="0.2"
+          class="sty-demo__slider"
+        ></el-slider>
+        <span class="sty-demo__val">{{ duration }}s</span>
+      </div>
+      <pre class="sty-demo__code">{{ codePulse }}</pre>
+
+      <!-- ⑨-4 交错入场 -->
+      <p class="sty-demo__sub">
+        ⑨-4 交错入场 · toStyle 函数形式 + <code>transitionDelay</code> 按索引递增
+      </p>
+      <div class="sty-demo__row">
+        <el-button size="small" @click="showAll = !showAll">
+          {{ showAll ? "收起" : "入场" }}
+        </el-button>
+        <div class="sty-demo__stagger">
+          <div v-for="i in 6" :key="i" :style="staggerStyle(i - 1)">{{ i }}</div>
+        </div>
+      </div>
+      <pre class="sty-demo__code">{{ codeStagger }}</pre>
+    </el-card>
   </div>
 </template>
 
@@ -165,6 +239,32 @@ const btnStyleFn = toStyle((props) => {
 
 const pretty = (obj) => JSON.stringify(obj, null, 2);
 
+/* ---------- ⑨-4 交错入场：函数形式，按 index 递增 transitionDelay ---------- */
+const staggerFn = toStyle((props) => ({
+  width: 48,
+  height: 48,
+  borderRadius: 6,
+  fontSize: 13,
+  fontWeight: 600,
+  background: "#eef3ff",
+  color: BRAND,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  transform: props.show ? "none" : "translateY(18px) scale(.85)",
+  opacity: props.show ? 1 : 0,
+  transition: "transform .45s cubic-bezier(.22, .61, .36, 1), opacity .45s ease",
+  // 时间值必须带单位（0 除外），这里自己拼 ms
+  transitionDelay: props.i * 90 + "ms",
+}));
+
+/* ---------- ⑨-2 缓动对比 ---------- */
+const EASINGS = [
+  { label: "linear", ease: "linear", color: "#c0c4cc" },
+  { label: "ease-in-out", ease: "ease-in-out", color: "#909399" },
+  { label: "cubic-bezier(.2,.9,.3,1.4) 回弹", ease: "cubic-bezier(.2,.9,.3,1.4)", color: BRAND },
+];
+
 export default {
   name: "StyleDemo",
   data() {
@@ -181,6 +281,13 @@ export default {
         disabled: false,
         danger: false,
       },
+      /* ⑨ 动画 */
+      EASINGS,
+      moved: false,
+      go: false,
+      playing: true,
+      duration: 1.6,
+      showAll: false,
     };
   },
   computed: {
@@ -345,6 +452,82 @@ export default {
         JSON.stringify(this.playStyle)
       );
     },
+
+    /* ---------- ⑨-1 过渡 ---------- */
+    moveStyle() {
+      return toStyle({
+        transform: this.moved ? "translateX(230px) scale(1.15)" : "none",
+        opacity: this.moved ? 1 : 0.5,
+        background: this.moved ? BRAND : "#c0c4cc",
+        // 多个属性各自写过渡，逗号分隔
+        transition: "transform .5s cubic-bezier(.22, .61, .36, 1), opacity .5s, background .5s",
+      });
+    },
+    codeMove() {
+      return (
+        "toStyle({\n  transform: moved ? 'translateX(230px) scale(1.15)' : 'none',\n  opacity: moved ? 1 : .5,\n  transition: 'transform .5s cubic-bezier(.22,.61,.36,1), opacity .5s, background .5s'\n})\n\n// 当前 => " +
+        JSON.stringify(this.moveStyle)
+      );
+    },
+
+    /* ---------- ⑨-2 缓动对比 ---------- */
+    codeEase() {
+      return (
+        "// 每个球一套自己的 transition，同时切换状态 → 曲线差异一眼可见\nconst EASINGS = ['linear', 'ease-in-out', 'cubic-bezier(.2,.9,.3,1.4)']\n\ntoStyle({\n  transform: go ? 'translateX(200px)' : 'none',\n  background: color,\n  transition: 'transform .9s ' + ease\n})\n\n// 第 3 条（回弹）当前 => " +
+        JSON.stringify(this.ballStyle(this.EASINGS[2]))
+      );
+    },
+
+    /* ---------- ⑨-3 循环动画 ---------- */
+    pulseStyle() {
+      return toStyle(
+        {
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          background: BRAND,
+          animationName: "sty-pulse", // 关键帧在非 scoped 的 style 块里定义
+          animationTimingFunction: "ease-in-out",
+          animationIterationCount: "infinite",
+        },
+        // 时间类数字单独用一个 toStyle 补 's'，再合并进来（选项只对最后那个参数生效）
+        toStyle({ animationDuration: this.duration, animationDelay: 0.1 }, { unit: "s" }),
+        { animationPlayState: this.playing ? "running" : "paused" }
+      );
+    },
+    codePulse() {
+      return (
+        "// @keyframes 不能内联，写在一个【非 scoped】的 style 块里：\n//   @keyframes sty-pulse { 50% { box-shadow: 0 0 0 14px rgba(50,111,255,0); transform: scale(1.06) } }\n\ntoStyle(\n  {\n    width: 44, height: 44, borderRadius: '50%',\n    animationName: 'sty-pulse',\n    animationIterationCount: 'infinite'\n  },\n  // 时间类数字单独补 's' 后合并进来\n  toStyle({ animationDuration: " +
+        this.duration +
+        ", animationDelay: .1 }, { unit: 's' }),\n  { animationPlayState: playing ? 'running' : 'paused' }\n)\n\n// => " +
+        JSON.stringify(this.pulseStyle)
+      );
+    },
+
+    /* ---------- ⑨-4 交错入场 ---------- */
+    codeStagger() {
+      return (
+        "const staggerFn = toStyle(props => ({\n  transform: props.show ? 'none' : 'translateY(18px) scale(.85)',\n  opacity: props.show ? 1 : 0,\n  transition: 'transform .45s cubic-bezier(.22,.61,.36,1), opacity .45s ease',\n  transitionDelay: props.i * 90 + 'ms'   // ← 按索引递增，形成交错\n}))\n\n// v-for 里\n:style=\"staggerFn({ i, show: showAll })\"\n\n// i=2 的结果 => " +
+        JSON.stringify(this.staggerStyle(2))
+      );
+    },
+  },
+  methods: {
+    /* ---------- ⑨-2 缓动对比：每个球一套自己的 transition ---------- */
+    ballStyle(e) {
+      return toStyle({
+        width: 16,
+        height: 16,
+        borderRadius: "50%",
+        background: e.color,
+        transform: this.go ? "translateX(200px)" : "none",
+        transition: "transform .9s " + e.ease,
+      });
+    },
+    /* ---------- ⑨-4 交错入场 ---------- */
+    staggerStyle(i) {
+      return staggerFn({ i, show: this.showAll });
+    },
   },
 };
 </script>
@@ -437,5 +620,87 @@ export default {
   color: #000;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* ---------- ⑨ 动画 ---------- */
+.sty-demo__sub {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+}
+.sty-demo__sub:first-of-type {
+  margin-top: 4px;
+}
+.sty-demo__sub code {
+  font-weight: 400;
+}
+.sty-demo__field-label {
+  font-size: 14px;
+  color: #000;
+}
+.sty-demo__track {
+  width: 240px;
+  height: 32px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px dashed #c0c4cc;
+  border-radius: 4px;
+}
+.sty-demo__track--wide {
+  width: 320px;
+}
+.sty-demo__dot {
+  width: 64px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  font-size: 11px;
+  color: #fff;
+  background: #c0c4cc;
+  border-radius: 4px;
+}
+.sty-demo__dot--ball {
+  width: 16px;
+  height: 16px;
+}
+.sty-demo__ease {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.sty-demo__ease-label {
+  width: 220px;
+  font-size: 14px;
+  color: #000;
+}
+.sty-demo__pulse {
+  flex: 0 0 auto;
+}
+.sty-demo__stagger {
+  display: flex;
+  gap: 8px;
+}
+</style>
+
+<!-- 关键帧必须放【非 scoped】块：
+     scoped 块里的 @keyframes 名字会被 vue-loader 加上作用域后缀，
+     而内联 style 里 animationName 用的是原始名字，那样就匹配不上、动画不生效 -->
+<style>
+@keyframes sty-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(50, 111, 255, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgba(50, 111, 255, 0);
+    transform: scale(1.06);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(50, 111, 255, 0);
+  }
 }
 </style>
