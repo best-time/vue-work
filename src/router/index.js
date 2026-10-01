@@ -19,6 +19,7 @@ export const routes = [
   { path: '/grid-box', name: 'GridBoxDemo', component: () => import('@/components/GridBox/GridBoxDemoPage.vue') },
   { path: '/emotion', name: 'EmotionDemo', component: () => import('@/views/EmotionDemo/index.vue') },
   { path: '/style-demo', name: 'StyleDemo', component: () => import('@/views/StyleDemo/index.vue') },
+  { path: '/grid-demo', name: 'GridDemo', component: () => import('@/views/GridDemo/index.vue') },
 ]
 
 export default new VueRouter({

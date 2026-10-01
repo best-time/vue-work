@@ -1,0 +1,563 @@
+// ============================================================================
+// Grid 常用布局 Mixin 集合 —— src/styles/grid.scss
+// ----------------------------------------------------------------------------
+// 已全局注入：vue.config.js → css.loaderOptions.scss.additionalData
+//     @use "~@/styles/grid.scss" as *;
+// 所以任意 <style lang="scss"> 或 .scss 文件里直接 @include 即可，无需再 import。
+//
+// 本文件只有 mixin / function，没有任何裸样式规则 —— 不 @include 就不产生 CSS；
+// 唯一例外是第 11 节的 grid-utils()，它需要你手动 @include 才会生成工具类。
+//
+// 速查表
+//   ── 容器 ─────────────────────────────────────────────────────────────────
+//   @include grid-cols-equal(3, 16px);              等分 3 列，间距 16px
+//   @include grid-cols(200px, 1fr, 100px);          侧栏 + 自适应 + 右栏
+//   @include grid-auto-fit(240px, 16px);            卡片自适应铺满（推荐）
+//   @include grid-auto-fill(240px, 16px);           同上，但末行留空格
+//   @include grid-center;                           单格水平垂直居中
+//   @include grid-stack;                            子项全部叠在同一格（图层/蒙层）
+//   ── 子项 ─────────────────────────────────────────────────────────────────
+//   @include grid-span(2);                          跨 2 列
+//   @include grid-span(2, 2);                       跨 2 列 2 行
+//   @include grid-full-row;                         独占一整行（表单里常用）
+//   @include grid-area-name(main);                  归属命名区域
+//   ── 成品布局 ─────────────────────────────────────────────────────────────
+//   @include grid-holy-grail(220px, 320px, 16px);   header / aside / main / footer
+//   @include grid-sidebar(240px);                   左固定 + 右自适应
+//   @include grid-form(2, 24px, 18px);              两列表单（列距 24、行距 18）
+//   @include grid-card-list(260px, 16px);           卡片列表
+//   ── 响应式 ───────────────────────────────────────────────────────────────
+//   @include grid-cols-respond(1, 2, 3, 4);         小屏 1 列 → 中 2 → 大 3 → 超大 4
+//
+// 约定
+//   · 所有等分列都生成 minmax(0, 1fr) 而非 1fr —— grid 子项默认 min-width:auto，
+//     长单词 / 宽表格会把轨道撑破；必要时再配合 @include grid-item(); 双保险。
+//   · 参数里 $row-gap / $col-gap 与 CSS 的 gap: <row> <column> 顺序一致。
+//   · 只给 $row-gap 时行列同值；给 $col-gap 时 $row-gap 只作用于行。
+// ============================================================================
+
+// 用 Sass 官方模块函数（不用已废弃的全局 map-get / type-of 等）
+@use 'sass:list';
+@use 'sass:map';
+@use 'sass:meta';
+
+
+// ---------------------------------------------------------------------------
+// 0. 可配置变量（!default：可在使用方 @use ... with (...) 覆盖）
+// ---------------------------------------------------------------------------
+
+// 默认间距
+$grid-gap: 16px !default;
+
+// 断点（与 element-ui 的 el-col 保持一致：xs<768 / sm≥768 / md≥992 / lg≥1200 / xl≥1920）
+$grid-breakpoints: (
+  sm: 768px,
+  md: 992px,
+  lg: 1200px,
+  xl: 1920px,
+) !default;
+
+// grid-utils() 生成的类名前缀
+$grid-utils-prefix: 'g-' !default;
+
+// 网格线的第一条 / 最后一条（通栏用 1 / -1）
+$grid-line-first: 1 !default;
+$grid-line-last: -1 !default;
+
+
+// ---------------------------------------------------------------------------
+// 1. 基础
+// ---------------------------------------------------------------------------
+
+// 容器基础：display:grid + 间距，列定义可选
+//   @include grid-container;                 => 只开 grid + gap
+//   @include grid-container(3);              => 等分 3 列
+//   @include grid-container(200px 1fr);      => 直接写模板字符串
+@mixin grid-container($columns: null, $row-gap: $grid-gap, $col-gap: null, $min: 0) {
+  display: grid;
+
+  @if $columns != null {
+    @if meta.type-of($columns) == number {
+      grid-template-columns: repeat($columns, minmax($min, 1fr));
+    } @else {
+      grid-template-columns: $columns;
+    }
+  }
+
+  @include grid-gap($row-gap, $col-gap);
+}
+
+// 子项最小尺寸保护：长内容不撑破轨道
+//   @include grid-item;        => min-width: 0
+//   @include grid-item(0, 0);  => min-width: 0; min-height: 0（子项内还要滚动时）
+@mixin grid-item($min-width: 0, $min-height: null) {
+  @if $min-width != null {
+    min-width: $min-width;
+  }
+  @if $min-height != null {
+    min-height: $min-height;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 2. 列轨道
+// ---------------------------------------------------------------------------
+
+// 等分列：列数 + 间距
+//   @include grid-cols-equal(3);            => 3 等分列，间距用默认 $grid-gap
+//   @include grid-cols-equal(3, 0);         => 3 等分列，无间距
+//   @include grid-cols-equal(4, 24px, 16px);=> 行距 24px、列距 16px
+@mixin grid-cols-equal($columns, $row-gap: $grid-gap, $col-gap: null, $min: 0) {
+  display: grid;
+  grid-template-columns: repeat($columns, minmax($min, 1fr));
+  @include grid-gap($row-gap, $col-gap);
+}
+
+// 等分列别名（沿用旧的 grid-equal 名字，方便老代码平滑迁移）
+@mixin grid-equal($columns, $row-gap: $grid-gap, $col-gap: null, $min: 0) {
+  @include grid-cols-equal($columns, $row-gap, $col-gap, $min);
+}
+
+// 任意列宽：想写几段写几段，支持 fr / px / minmax / 百分比
+//   @include grid-cols(200px, 1fr, 100px);   => 左固定 200 + 中间自适应 + 右固定 100
+//   @include grid-cols(1fr, 2fr);            => 1:2
+//   @include grid-cols(repeat(3, 1fr));      => 也支持整段函数
+// 注意：变参默认是「逗号分隔」的 list，直接输出会变成非法的
+//   grid-template-columns: 200px, 1fr, 100px（整条声明会被浏览器丢弃），
+//   所以必须用 list.join 拼成空格分隔。
+@mixin grid-cols($widths...) {
+  display: grid;
+  grid-template-columns: list.join((), $widths, space);
+}
+
+// 列宽落在区间内弹性伸缩：min 固定、max 到某值封顶（窗口超宽时不再拉长）
+//   @include grid-cols-clamp(3, 240px, 420px, 16px);
+@mixin grid-cols-clamp($columns, $min-width, $max-width, $row-gap: $grid-gap, $col-gap: null) {
+  display: grid;
+  grid-template-columns: repeat($columns, minmax($min-width, $max-width));
+  @include grid-gap($row-gap, $col-gap);
+}
+
+
+// ---------------------------------------------------------------------------
+// 3. 行轨道
+// ---------------------------------------------------------------------------
+
+// 任意行高
+//   @include grid-rows(auto, 1fr, 48px);
+// （同样要用 list.join 去掉变参自带的逗号）
+@mixin grid-rows($heights...) {
+  display: grid;
+  grid-template-rows: list.join((), $heights, space);
+}
+
+// 等分行（纵向铺满，子项各占一行）
+//   @include grid-rows-equal(3, 12px);
+@mixin grid-rows-equal($rows, $row-gap: 0, $col-gap: null) {
+  display: grid;
+  grid-template-rows: repeat($rows, minmax(0, 1fr));
+  @include grid-gap($row-gap, $col-gap);
+}
+
+// 隐式行高（超出模板的自动行）
+//   @include grid-auto-rows(60px);    => 每行固定 60
+//   @include grid-auto-rows(minmax(60px, auto));
+@mixin grid-auto-rows($height: auto) {
+  grid-auto-rows: $height;
+}
+
+// 自动换行方向 / 紧凑填充（dense 可把空洞用后面的小项填上）
+//   @include grid-auto-flow(row, true);
+@mixin grid-auto-flow($flow: row, $dense: false) {
+  grid-auto-flow: if($dense, $flow dense, $flow);
+}
+
+
+// ---------------------------------------------------------------------------
+// 4. 自适应列（不写死列数，容器多宽就放多少列）
+// ---------------------------------------------------------------------------
+
+// auto-fit：列宽不足自动折行，轨迹被拉伸铺满（末行不留空位）—— 卡片列表首选
+//   @include grid-auto-fit(240px, 16px);
+//   @include grid-auto-fit(200px, 16px, 320px);   => 列宽在 200~320 之间弹性
+@mixin grid-auto-fit($min-width, $row-gap: $grid-gap, $max-width: 1fr, $col-gap: null) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax($min-width, $max-width));
+  @include grid-gap($row-gap, $col-gap);
+}
+
+// auto-fill：与 auto-fit 的区别是保留空轨道，末行项目不会被拉宽
+//   @include grid-auto-fill(240px, 16px);
+@mixin grid-auto-fill($min-width, $row-gap: $grid-gap, $max-width: 1fr, $col-gap: null) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax($min-width, $max-width));
+  @include grid-gap($row-gap, $col-gap);
+}
+
+
+// ---------------------------------------------------------------------------
+// 5. 间距
+// ---------------------------------------------------------------------------
+
+// 只调间距、不动列定义（可用于覆盖已有 grid）
+//   @include grid-gap(16px);        => 行列都是 16px
+//   @include grid-gap(24px, 16px);  => 行距 24px、列距 16px（同 CSS gap 顺序）
+@mixin grid-gap($row-gap: $grid-gap, $col-gap: null) {
+  @if $col-gap == null {
+    gap: $row-gap;
+  } @else {
+    gap: $row-gap $col-gap;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 6. 对齐
+// ---------------------------------------------------------------------------
+
+// 子项在各自单元格内的对齐（作用于容器，可被子项 grid-self 覆盖）
+//   @include grid-place(center);            => 纵横向都居中
+//   @include grid-place(start, center);     => 顶对齐 + 横向居中
+@mixin grid-place($align: stretch, $justify: stretch) {
+  align-items: $align;
+  justify-items: $justify;
+}
+
+// 整块轨道网格在容器里的分布（容器比内容大时才看得出）
+//   @include grid-place-content(center, center);   => 网格整体居中
+@mixin grid-place-content($align: start, $justify: start) {
+  align-content: $align;
+  justify-content: $justify;
+}
+
+// 居中一格：display:grid + place-items:center，比 flex + 双 center 更省
+//   @include grid-center;
+//   @include grid-center(12px);   => 顺便带个间距（多格时有用）
+@mixin grid-center($row-gap: null, $col-gap: null) {
+  display: grid;
+  place-items: center;
+  @if $row-gap != null {
+    @include grid-gap($row-gap, $col-gap);
+  }
+}
+
+// 子项自身对齐（覆盖容器的 grid-place）
+//   @include grid-self(end, center);
+@mixin grid-self($align: null, $justify: null) {
+  @if $align != null {
+    align-self: $align;
+  }
+  @if $justify != null {
+    justify-self: $justify;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 7. 子项定位 / 跨越
+// ---------------------------------------------------------------------------
+
+// 跨列跨行：只给列、只给行、或都给
+//   @include grid-span(2);        => grid-column: span 2
+//   @include grid-span(2, 3);     => grid-column: span 2; grid-row: span 3
+//   @include grid-span(null, 2);  => 仅跨 2 行
+@mixin grid-span($column: null, $row: null) {
+  @if $column != null {
+    grid-column: span $column;
+  }
+  @if $row != null {
+    grid-row: span $row;
+  }
+}
+
+@mixin grid-span-cols($count) {
+  grid-column: span $count;
+}
+
+@mixin grid-span-rows($count) {
+  grid-row: span $count;
+}
+
+// 起点到终点（第 2 列线 → 第 4 列线 = 占 2 列）
+//   @include grid-cross(2, 4);
+// 用插值拼接：否则 $start / $end 会被 Sass 当成除法（2/4 → 0.5）
+@mixin grid-cross($start, $end) {
+  grid-column: #{$start} / #{$end};
+}
+
+// 单元格定位：把子项钉到第几行第几列
+//   @include grid-position(2, 3);
+@mixin grid-position($row, $column) {
+  grid-row: $row;
+  grid-column: $column;
+}
+
+// 独占一整行 / 一整列（表单里让某个字段通栏、通栏表头/分隔线）
+//   @include grid-full-row;
+@mixin grid-full-row {
+  grid-column: #{$grid-line-first} / #{$grid-line-last};
+}
+
+@mixin grid-full-column {
+  grid-row: #{$grid-line-first} / #{$grid-line-last};
+}
+
+// 视觉顺序（不改变 DOM 顺序）
+@mixin grid-order($order) {
+  order: $order;
+}
+
+
+// ---------------------------------------------------------------------------
+// 8. 命名区域
+// ---------------------------------------------------------------------------
+
+// 命名区域布局：把每个字符串当成一行，"h h" "a m" 这样排版，可读性最高
+//   @include grid-areas(
+//     "header header"
+//     "aside  main"
+//     "footer footer",
+//     200px 1fr,      // 列宽（可选）
+//     auto 1fr auto,  // 行高（可选）
+//     16px            // 间距（可选）
+//   );
+//   子项上用 @include grid-area-name(header); 认领区域
+@mixin grid-areas($areas, $columns: null, $rows: null, $row-gap: null, $col-gap: null) {
+  display: grid;
+  grid-template-areas: $areas;
+
+  @if $columns != null {
+    grid-template-columns: $columns;
+  }
+  @if $rows != null {
+    grid-template-rows: $rows;
+  }
+  @if $row-gap != null {
+    @include grid-gap($row-gap, $col-gap);
+  }
+}
+
+// 子项认领区域名
+//   @include grid-area-name(main);
+@mixin grid-area-name($name) {
+  grid-area: $name;
+}
+
+
+// ---------------------------------------------------------------------------
+// 9. 响应式
+// ---------------------------------------------------------------------------
+
+// 单一断点包裹：$breakpoint 可用断点名（sm/md/lg/xl）或直接给像素值
+//   @include grid-respond(md) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+//   @include grid-respond(900px) { ... }
+@mixin grid-respond($breakpoint) {
+  $value: if(
+    meta.type-of($breakpoint) == number,
+    $breakpoint,
+    map.get($grid-breakpoints, $breakpoint)
+  );
+
+  @if $value == null {
+    @error "未找到断点 `#{$breakpoint}`，可用的是：#{map.keys($grid-breakpoints)}";
+  }
+
+  @media (min-width: $value) {
+    @content;
+  }
+}
+
+// 响应式等分列：小屏 $sm 列起步，随断点逐级变多（想跳过的断点传 null）
+//   @include grid-cols-respond(1, 2, 3, 4);   => 1 → 2 → 3 → 4 列
+//   @include grid-cols-respond(1, 2);         => 1 → 2 列，lg/xl 不变
+@mixin grid-cols-respond($sm: 1, $md: null, $lg: null, $xl: null, $row-gap: $grid-gap, $col-gap: null, $min: 0) {
+  display: grid;
+  grid-template-columns: repeat($sm, minmax($min, 1fr));
+  @include grid-gap($row-gap, $col-gap);
+
+  $steps: (md: $md, lg: $lg, xl: $xl);
+
+  @each $name, $count in $steps {
+    @if $count != null {
+      @include grid-respond($name) {
+        grid-template-columns: repeat($count, minmax($min, 1fr));
+      }
+    }
+  }
+}
+
+// 别名，语义更直白
+@mixin grid-responsive($sm: 1, $md: 2, $lg: 4, $xl: null, $row-gap: $grid-gap, $col-gap: null, $min: 0) {
+  @include grid-cols-respond($sm, $md, $lg, $xl, $row-gap, $col-gap, $min);
+}
+
+// 子项跨列的响应式（某个卡片小屏占 1 列、大屏占 2 列）
+//   @include grid-span-respond(1, 2, 2);
+@mixin grid-span-respond($sm: null, $md: null, $lg: null, $xl: null) {
+  @if $sm != null {
+    grid-column: span $sm;
+  }
+
+  $steps: (md: $md, lg: $lg, xl: $xl);
+
+  @each $name, $count in $steps {
+    @if $count != null {
+      @include grid-respond($name) {
+        grid-column: span $count;
+      }
+    }
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 10. 成品布局（一键套用）
+// ---------------------------------------------------------------------------
+
+// 圣杯布局：header / footer 通栏，main 自适应，左右侧栏可选
+//   @include grid-holy-grail(220px, 320px, 16px, null, 64px, 48px, 100vh);
+//   ｜左栏 220 ｜右栏 320 ｜行距 16 ｜列距同 ｜表头 64 ｜页脚 48 ｜最小高 100vh
+//   子项：@include grid-area-name(header / aside / main / aside-r / footer);
+@mixin grid-holy-grail(
+  $aside-left: 220px,
+  $aside-right: null,
+  $row-gap: $grid-gap,
+  $col-gap: null,
+  $header: auto,
+  $footer: auto,
+  $min-height: null
+) {
+  display: grid;
+  @include grid-gap($row-gap, $col-gap);
+
+  @if $min-height != null {
+    min-height: $min-height;
+  }
+
+  @if $aside-left == null and $aside-right == null {
+    grid-template-areas:
+      'header'
+      'main'
+      'footer';
+    grid-template-columns: 1fr;
+    grid-template-rows: $header 1fr $footer;
+  } @else if $aside-right == null {
+    grid-template-areas:
+      'header header'
+      'aside  main'
+      'footer footer';
+    grid-template-columns: $aside-left minmax(0, 1fr);
+    grid-template-rows: $header 1fr $footer;
+  } @else if $aside-left == null {
+    grid-template-areas:
+      'header  header'
+      'main    aside-r'
+      'footer  footer';
+    grid-template-columns: minmax(0, 1fr) $aside-right;
+    grid-template-rows: $header 1fr $footer;
+  } @else {
+    grid-template-areas:
+      'header header header'
+      'aside  main   aside-r'
+      'footer footer footer';
+    grid-template-columns: $aside-left minmax(0, 1fr) $aside-right;
+    grid-template-rows: $header 1fr $footer;
+  }
+}
+
+// 侧栏 + 主区（后台最常见的一行两栏）
+//   @include grid-sidebar(240px);              => 左固定 240 + 右自适应
+//   @include grid-sidebar(320px, 16px, null, right);  => 右固定 320（详情页/预览栏）
+@mixin grid-sidebar($aside: 240px, $row-gap: $grid-gap, $col-gap: null, $position: left, $align: null) {
+  display: grid;
+
+  @if $position == left {
+    grid-template-columns: $aside minmax(0, 1fr);
+  } @else {
+    grid-template-columns: minmax(0, 1fr) $aside;
+  }
+
+  @if $align != null {
+    align-items: $align;
+  }
+
+  @include grid-gap($row-gap, $col-gap);
+}
+
+// 表单栅格：行距一般比列距小，子项要通栏时用 @include grid-full-row;
+//   @include grid-form(2);              => 两列，列距 24px、行距 18px
+//   @include grid-form(3, 20px, 16px);  => 三列，列距 20px、行距 16px
+@mixin grid-form($columns: 2, $col-gap: 24px, $row-gap: 18px, $min: 0) {
+  display: grid;
+  grid-template-columns: repeat($columns, minmax($min, 1fr));
+  gap: $row-gap $col-gap;
+}
+
+// 图文（媒体对象）：定宽图标 + 自适应文字
+//   @include grid-media(40px, 12px, start);
+@mixin grid-media($icon: 40px, $gap: 12px, $align: center) {
+  display: grid;
+  grid-template-columns: $icon minmax(0, 1fr);
+  gap: $gap;
+  align-items: $align;
+}
+
+// 卡片列表：按最小宽度自动决定列数，铺满整行
+//   @include grid-card-list(260px, 16px);
+@mixin grid-card-list($min-width: 260px, $gap: $grid-gap, $max-width: 1fr) {
+  @include grid-auto-fit($min-width, $gap, $max-width);
+}
+
+// 图层堆叠：所有直接子项叠在同一格，适合 loading 蒙层 / 图片覆盖文案 / 图表叠加
+//   @include grid-stack;
+@mixin grid-stack($gap: 0) {
+  display: grid;
+  gap: $gap;
+
+  > * {
+    grid-area: #{$grid-line-first} / #{$grid-line-first};
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 11. 工具类生成（默认不输出；需要时在全局样式里手动调用一次）
+// ---------------------------------------------------------------------------
+
+// 生成 .g-cols-N / .g-span-full / .g-center 等工具类
+//   @include grid-utils();                        => 默认 1~12 列
+//   @include grid-utils(6, 12px, 'g-', true);     => 最多 6 列 + 断点变体
+//   断点变体形如 .g-md-cols-2，配合 .g-cols-1 用：
+//     <div class="g-cols-1 g-md-cols-2 g-lg-cols-4">
+//   （变体只改 grid-template-columns，基础 display:grid 由 .g-cols-* 提供）
+@mixin grid-utils($max: 12, $gap: $grid-gap, $prefix: $grid-utils-prefix, $responsive: false) {
+  @for $i from 1 through $max {
+    .#{$prefix}cols-#{$i} {
+      display: grid;
+      grid-template-columns: repeat($i, minmax(0, 1fr));
+      gap: $gap;
+    }
+  }
+
+  .#{$prefix}span-full {
+    grid-column: #{$grid-line-first} / #{$grid-line-last};
+  }
+
+  .#{$prefix}center {
+    display: grid;
+    place-items: center;
+  }
+
+  @if $responsive {
+    @each $name, $value in $grid-breakpoints {
+      @include grid-respond($name) {
+        @for $i from 1 through $max {
+          .#{$prefix}#{$name}-cols-#{$i} {
+            grid-template-columns: repeat($i, minmax(0, 1fr));
+          }
+        }
+      }
+    }
+  }
+}
