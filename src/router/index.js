@@ -17,6 +17,8 @@ export const routes = [
   { path: '/fun-h-dialog', name: 'FunHDialog', component: () => import('@/components/FunComponent/h-dialog/HDialogDemoPage.vue') },
   { path: '/vxe-table', name: 'VxeTableDemo', component: () => import('@/components/VxeTable/VxeTableDemoPage.vue') },
   { path: '/grid-box', name: 'GridBoxDemo', component: () => import('@/components/GridBox/GridBoxDemoPage.vue') },
+  { path: '/emotion', name: 'EmotionDemo', component: () => import('@/views/EmotionDemo/index.vue') },
+  { path: '/style-demo', name: 'StyleDemo', component: () => import('@/views/StyleDemo/index.vue') },
 ]
 
 export default new VueRouter({
