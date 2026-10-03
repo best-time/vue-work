@@ -75,7 +75,7 @@ module.exports = {
   // },
     loaderOptions: {
       scss: {
-        additionalData: `@use "~@/styles/variables.scss" as *;\n@use "~@/styles/mixin.scss" as *;\n@use "~@/styles/grid.scss" as *;`
+        additionalData: `@use "~@/styles/variables.scss" as *;\n@use "~@/styles/mixin.scss" as *;\n@use "~@/styles/grid.scss" as *;\n@use "~@/styles/nest.scss" as *;`
       }
     }
   }

@@ -10,6 +10,7 @@ import './styles/base.scss'
 import '@/components/FunComponent/$dialog'
 import '@/components/VxeTable' // vxe-table 3.6（Vue2 兼容版）+ 全局格式化器 + CommonTable 公共组件
 import '@/components/GridBox' // CSS Grid 非响应式栅格（props 驱动）：<grid-box> / <grid-box-item>
+import '@/utils/skeleton' // 简易骨架屏：v-skeleton 指令 + sk* 占位块工具（运行时注入样式）
 
 Vue.use(ElementUI)
 

@@ -47,3 +47,16 @@
 //   .list { @include grid-auto-fit(240px, 16px); }
 //   .col  { @include grid-span(2); }
 // 详细速查见该文件头部注释。
+
+// ==================== 嵌套 DOM 分层样式 Mixin ====================
+// 已抽到独立文件 src/styles/nest.scss。约定「一个模块三层 DOM，每层只干一件事」：
+//   外层 .x          → margin / position / z-index      （模块与外界的关系）
+//   中层 .x__inner   → padding / border / background / radius / shadow / overflow（盒子外壳）
+//   内层 .x__content → 纯内容，不写盒子样式
+// 同样已全局注入，例如：
+//   .card {
+//     @include nest-outer(0 0 16px);
+//     &__inner   { @include nest-inner(16px, 8px, #fff); }
+//     &__content { @include nest-content; }
+//   }
+// 详细速查见该文件头部注释。

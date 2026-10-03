@@ -1,0 +1,217 @@
+// ============================================================================
+// 嵌套 DOM「分层样式」Mixin —— src/styles/nest.scss
+// ----------------------------------------------------------------------------
+// 已全局注入：vue.config.js → css.loaderOptions.scss.additionalData
+//     @use "~@/styles/nest.scss" as *;
+// 所以任意 <style lang="scss"> 里直接 @include，无需 import。
+// 本文件只有 mixin / 变量，不 @include 就不产生任何 CSS。
+//
+// 一句话约定：**一个模块三层 DOM，每层只干一件事。**
+//
+//   <div class="card">              ← ① 外层：margin / position / z-index
+//     <div class="card__inner">     ← ② 中层：padding / border / background / radius / shadow
+//       <div class="card__content"> ← ③ 内层：纯内容，不写盒子样式
+//
+// 职责表
+//   ┌──────┬─────────────────────────────────────────┬──────────────────────────────┐
+//   │ 层   │ 只写                                    │ 绝不写                       │
+//   ├──────┼─────────────────────────────────────────┼──────────────────────────────┤
+//   │ 外层 │ margin / position / z-index / 尺寸约束  │ padding / border / background│
+//   │ 中层 │ padding / border / background / radius  │ margin / position / z-index  │
+//   │      │ / box-shadow / overflow                 │                              │
+//   │ 内层 │ 什么都不写（最多 min-width: 0）         │ 一切盒子样式                 │
+//   └──────┴─────────────────────────────────────────┴──────────────────────────────┘
+//
+// 为什么要这么分（四条理由，对应四个真实踩坑）
+//   · 外层管 margin —— 间距是「模块与外界的关系」。同一个组件放进列表 / 网格 /
+//     弹窗，只有外层那一个 margin 需要覆盖，中层的 padding 与外观零改动。
+//     若 margin 与 padding 同层，为了改间距就必须复写整条规则，容易顺手把
+//     padding 也改坏（两个上下文间距不一致的问题会反复出现）。
+//   · 中层管外壳 —— padding 与 background / radius 同层，圆角才能正确裁掉自己的
+//     背景；border 与 padding 同层，视觉厚度符合盒模型直觉。
+//   · overflow: hidden 永远放中层 —— 外层往往挂 box-shadow 或 transform，
+//     overflow 一旦写在外层，阴影会被自己的裁剪框剪掉（圆角卡片最常见）。
+//   · z-index 配 position 一起放外层 —— 它们描述的是「整个模块在第几层」。
+//     挂在中层会出现「外层也是定位元素」的层叠竞争，表现随机。
+//
+// 速查
+//   .card {
+//     @include nest-outer(0 0 16px);                                     // ① 外层
+//     &__inner   { @include nest-inner(16px, 8px, #fff, $nest-border); }  // ② 中层
+//     &__content { @include nest-content; }                              // ③ 内层
+//   }
+//
+//   // 换上下文只覆盖外层一行，中层不动
+//   .grid .card { @include nest-outer(0); }
+//
+//   // 不想手写三层，也可以一次生成（须在样式顶层调用）
+//   @include nest-module('.card', '.card__inner', '.card__content',
+//     $margin: 0 0 16px, $padding: 16px, $radius: 8px, $background: #fff);
+// ============================================================================
+
+
+// ---------------------------------------------------------------------------
+// 0. 可配置默认值（!default 可被覆盖）
+// ---------------------------------------------------------------------------
+$nest-radius: 8px !default;
+$nest-border: 1px solid #ebeef5 !default;
+$nest-background: #fff !default;
+$nest-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !default;
+// 内容层唯一的“样式”：防长单词 / 宽表格撑破轨道
+$nest-content-min-width: 0 !default;
+
+
+// ---------------------------------------------------------------------------
+// 1. 外层 —— 只决定「我在外面占多少位置、在第几层」
+// ---------------------------------------------------------------------------
+//   @include nest-outer(0 0 16px);                          => 模块间距（最常用）
+//   @include nest-outer(0, relative, 2);                    => 间距 + 定位 + 抬上层级
+//   @include nest-outer(null, relative, null, flex, 240px); => 只要定位/宽度，不要 margin
+// 参数为 null 的项不输出，所以可以用来「只补某一项」。
+@mixin nest-outer(
+  $margin: null,
+  $position: relative,
+  $z-index: null,
+  $display: null,
+  $width: null,
+  $align-self: null
+) {
+  @if $position != null {
+    position: $position;
+  }
+  @if $margin != null {
+    margin: $margin;
+  }
+  @if $z-index != null {
+    z-index: $z-index;
+  }
+  @if $display != null {
+    display: $display;
+  }
+  @if $width != null {
+    width: $width;
+  }
+  @if $align-self != null {
+    align-self: $align-self;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 2. 中层 —— 盒子外壳（padding 在内、background / radius 在外，同层才好裁剪）
+// ---------------------------------------------------------------------------
+//   @include nest-inner;                                   => 只补 box-sizing
+//   @include nest-inner(16px);                             => 内边距
+//   @include nest-inner(16px, 8px, #fff);                  => padding / radius / 背景
+//   @include nest-inner(16px, 8px, #fff, $nest-border, $nest-shadow);
+// 注意 $overflow 只在这里出现，绝不要写在外层（会剪掉外层的阴影 / 位移）。
+@mixin nest-inner(
+  $padding: null,
+  $radius: null,
+  $background: null,
+  $border: null,
+  $shadow: null,
+  $overflow: null,
+  $height: null,
+  $min-height: null
+) {
+  box-sizing: border-box;
+
+  @if $padding != null {
+    padding: $padding;
+  }
+  @if $radius != null {
+    border-radius: $radius;
+  }
+  @if $background != null {
+    background: $background;
+  }
+  @if $border != null {
+    border: $border;
+  }
+  @if $shadow != null {
+    box-shadow: $shadow;
+  }
+  @if $overflow != null {
+    overflow: $overflow;
+  }
+  @if $height != null {
+    height: $height;
+  }
+  @if $min-height != null {
+    min-height: $min-height;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 3. 内层 —— 纯内容，原则上什么都不写
+// ---------------------------------------------------------------------------
+// 唯一的例外是越界保护：grid / flex 子项默认 min-width: auto，
+// 长单词会把轨道撑破，所以给 0 是最小且安全的“内容层样式”。
+//   @include nest-content;        => min-width: 0
+//   @include nest-content(0, 0);  => 外加 min-height: 0（内容内部还要滚动时）
+@mixin nest-content($min-width: $nest-content-min-width, $min-height: null) {
+  @if $min-width != null {
+    min-width: $min-width;
+  }
+  @if $min-height != null {
+    min-height: $min-height;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 4. 外壳裁剪 —— 头图 / 图片贴边时用，永远放中层
+// ---------------------------------------------------------------------------
+// 典型场景：圆角卡片里放一张贴边的头图，图片必须被圆角裁掉，
+// 但外层的 box-shadow 不能被裁 —— 所以裁剪只能落中层。
+//   @include nest-clip(8px);
+@mixin nest-clip($radius: null) {
+  overflow: hidden;
+
+  @if $radius != null {
+    border-radius: $radius;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 5. 一次生成三层 —— 省掉手写三套选择器（必须在样式顶层调用）
+// ---------------------------------------------------------------------------
+//   @include nest-module('.card', '.card__inner', '.card__content',
+//     $margin: 0 0 16px, $padding: 16px, $radius: 8px, $background: #fff);
+//
+// 生成的 CSS：
+//   .card           { position: relative; margin: 0 0 16px; }
+//   .card__inner    { box-sizing: border-box; padding: 16px; border-radius: 8px; background: #fff; }
+//   .card__content  { min-width: 0; }
+//
+// 小提醒：$content 直接写完整类名，不要用 & 拼接；本 mixin 假设调用位置是顶层。
+@mixin nest-module(
+  $outer,
+  $inner,
+  $content: null,
+  $margin: null,
+  $position: relative,
+  $z-index: null,
+  $padding: null,
+  $radius: null,
+  $background: null,
+  $border: null,
+  $shadow: null
+) {
+  #{$outer} {
+    @include nest-outer($margin, $position, $z-index);
+  }
+
+  #{$inner} {
+    @include nest-inner($padding, $radius, $background, $border, $shadow);
+  }
+
+  @if $content != null {
+    #{$content} {
+      @include nest-content;
+    }
+  }
+}
