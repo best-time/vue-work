@@ -568,7 +568,7 @@ clearSkeletonTheme()
       background: #e8f0ff;
       border-radius: 2px;
       color: #326fff;
-      font-size: 12px;
+      font-size: 16px;
     }
   }
 
@@ -598,6 +598,7 @@ clearSkeletonTheme()
       background: #f0f2f5;
       border-radius: 2px;
       color: #326fff;
+      font-size: 16px;
     }
   }
 
@@ -660,6 +661,7 @@ clearSkeletonTheme()
 
     code {
       color: #326fff;
+      font-size: 16px;
     }
   }
 }
@@ -741,7 +743,7 @@ clearSkeletonTheme()
     align-items: flex-start;
 
     code {
-      font-size: 12px;
+      font-size: 16px;
       color: #606266;
     }
   }
@@ -769,7 +771,9 @@ clearSkeletonTheme()
     color: #909399;
 
     code {
-      color: #326fff;
+      color: red;
+      font-size: 16px;
+      font-weight: bold;
     }
   }
 }

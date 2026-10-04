@@ -182,7 +182,9 @@ let injected = false;
 
 /** 已注入的 <style> 元素（单测用） */
 export function getSkeletonStyleElement() {
-  if (typeof document === "undefined") return null;
+  if (typeof document === "undefined") {
+    return null;
+  }
   return document.querySelector(`style[${SK_STYLE_TAG}]`);
 }
 
@@ -192,8 +194,12 @@ export function getSkeletonStyleElement() {
  * @returns {boolean} 是否本次真的注入了
  */
 export function injectSkeletonStyle(theme) {
-  if (typeof document === "undefined") return false;
-  if (injected && !theme) return false;
+  if (typeof document === "undefined") {
+    return false;
+  }
+  if (injected && !theme) {
+    return false;
+  }
   let el = getSkeletonStyleElement();
   if (!el) {
     el = document.createElement("style");
@@ -211,10 +217,14 @@ export function injectSkeletonStyle(theme) {
  */
 export function setSkeletonTheme(theme) {
   injectSkeletonStyle();
-  if (typeof document === "undefined" || !theme) return;
+  if (typeof document === "undefined" || !theme) {
+    return;
+  }
   const root = document.documentElement;
   THEME_ORDER.forEach((k) => {
-    if (theme[k] != null) root.style.setProperty(THEME_VARS[k], theme[k]);
+    if (theme[k] != null) {
+      root.style.setProperty(THEME_VARS[k], theme[k]);
+    }
   });
 }
 
@@ -228,7 +238,9 @@ export function clearSkeletonTheme() {
 /** 移除注入的样式（单测 / 换主题重注入用） */
 export function removeSkeletonStyle() {
   const el = getSkeletonStyleElement();
-  if (el && el.parentNode) el.parentNode.removeChild(el);
+  if (el && el.parentNode) {
+    el.parentNode.removeChild(el);
+  }
   injected = false;
 }
 
@@ -259,10 +271,17 @@ export function sk(options) {
   injectSkeletonStyle();
   const o = options || {};
   const cls = [SK];
-  if (o.animated === false) cls.push(SK + "--static");
-  else cls.push(SK + "--animated");
-  if (o.tone === "dark") cls.push(SK + "--dark");
-  if (o.class) cls.push(o.class);
+  if (o.animated === false) {
+    cls.push(SK + "--static");
+  } else {
+    cls.push(SK + "--animated");
+  }
+  if (o.tone === "dark") {
+    cls.push(SK + "--dark");
+  }
+  if (o.class) {
+    cls.push(o.class);
+  }
 
   const style = toStyle(
     {
@@ -298,7 +317,9 @@ export function skRect(width, height, options) {
 
 /** 按比例缩宽度：数字按倍数缩，px / % / rem / em 字符串按倍数缩，其它原样 */
 function scaleWidth(width, ratio) {
-  if (typeof width === "number") return Math.round(width * ratio);
+  if (typeof width === "number") {
+    return Math.round(width * ratio);
+  }
   if (typeof width === "string") {
     const m = /^([\d.]+)(%|px|rem|em|vw)?$/.exec(width.trim());
     if (m) {
@@ -340,9 +361,12 @@ export function skLines(count, options) {
         width: isLast ? scaleWidth(fullWidth, lastRatio) : fullWidth,
       })
     );
-    if (!isLast) item.style = toStyle(item.style, { marginBottom: gap });
+    if (!isLast) {
+      item.style = toStyle(item.style, { marginBottom: gap });
+    }
     out.push(item);
   }
+  // console.log(out)
   return out;
 }
 
@@ -352,11 +376,17 @@ export function skLines(count, options) {
 
 /** 把「节点描述」渲染成 VNode：{ tag, block, style, class, children } */
 function buildNode(h, node) {
-  if (!node) return null;
+  if (!node) {
+    return null;
+  }
   const block = node.block || null;
-  const data = { class: [node.class, block && block.class] };
+  const data = {
+    class: [node.class, block && block.class],
+  };
   const style = toStyle(block && block.style, node.style);
-  if (Object.keys(style).length) data.style = style;
+  if (Object.keys(style).length) {
+    data.style = style;
+  }
   const children = (node.children || [])
     .map((c) => buildNode(h, c))
     .filter(Boolean);
@@ -446,9 +476,15 @@ export const SK_PRESETS = Object.keys(PRESETS);
 
 /** 解析指令值：falsy → 关闭；true → 默认开启；对象 → { loading, width, height, radius, animated, tone, class } */
 function readOptions(value) {
-  if (value === false || value === null || value === undefined) return null;
-  if (value === true) return {};
-  if (typeof value === "object") return value.loading === false ? null : value;
+  if (value === false || value === null || value === undefined) {
+    return null;
+  }
+  if (value === true) {
+    return {};
+  }
+  if (typeof value === "object") {
+    return value.loading === false ? null : value;
+  }
   return {};
 }
 
@@ -464,12 +500,20 @@ function turnOn(el, options) {
   }
   // 先清掉上一次加的类（参数可能变了：animated / tone / class）
   (el.__skClass || []).forEach((c) => el.classList.remove(c));
+
   const cls = [];
-  if (options.animated === false) cls.push(SK + "--static");
-  else cls.push(SK + "--animated");
-  if (options.tone === "dark") cls.push(SK + "--dark");
+  if (options.animated === false) {
+    cls.push(SK + "--static");
+  } else {
+    cls.push(SK + "--animated");
+  }
+  if (options.tone === "dark") {
+    cls.push(SK + "--dark");
+  }
   // class 可能是一串用空格分隔的类名，逐个加（classList.add 不支持带空格）
-  if (options.class) cls.push.apply(cls, String(options.class).split(/\s+/));
+  if (options.class) {
+    cls.push.apply(cls, String(options.class).split(/\s+/));
+  }
   el.__skClass = cls;
   cls.forEach((c) => c && el.classList.add(c));
 
@@ -478,6 +522,7 @@ function turnOn(el, options) {
     width: options.width,
     height: options.height,
   });
+
   Object.keys(inline).forEach((k) => {
     el.style[k] = inline[k];
   });
@@ -486,7 +531,9 @@ function turnOn(el, options) {
 }
 
 function turnOff(el) {
-  if (el.hasAttribute(SK_ATTR)) el.removeAttribute(SK_ATTR);
+  if (el.hasAttribute(SK_ATTR)) {
+    el.removeAttribute(SK_ATTR);
+  }
   (el.__skClass || []).forEach((c) => el.classList.remove(c));
   el.__skClass = null;
   if (el.__skSaved) {
@@ -554,7 +601,9 @@ export const skeletonApi = {
 export function install(VueCtor, options) {
   VueCtor.directive("skeleton", vSkeleton);
   VueCtor.prototype.$skeleton = skeletonApi;
-  if (options && options.theme) setSkeletonTheme(options.theme);
+  if (options && options.theme) {
+    setSkeletonTheme(options.theme);
+  }
 }
 
 const plugin = { install };
