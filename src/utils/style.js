@@ -88,7 +88,9 @@ const cssVarRE = /^--/;
 
 /** kebab-case → camelCase（CSS 变量保持原样） */
 function camelize(key) {
-  if (cssVarRE.test(key)) return key;
+  if (cssVarRE.test(key)) {
+    return key;
+  }
   return key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
 
@@ -100,7 +102,8 @@ function withUnit(key, value, unit, unitless) {
   if (value === 0 || unitless.has(key)) {
     return value;
   }
-  return value + unit;
+  // return value + unit;
+  return `${value}${unit}`
 }
 
 /**
@@ -147,8 +150,9 @@ export function toStyle(...args) {
   // 选项只在「样式对象之外还多传了一个选项对象」时生效，避免误吞样式
   let options = {};
   const last = args[args.length - 1];
-  if (args.length > 1 && isPlainObject(last) && isOptions(last))
+  if (args.length > 1 && isPlainObject(last) && isOptions(last)) {
     options = args.pop();
+  }
 
   const unit = options.unit === undefined ? "px" : options.unit;
   const shouldCamelize = options.camelize !== false;
@@ -167,9 +171,10 @@ export function toStyle(...args) {
   return normalize(args, { unit, shouldCamelize, unitless });
 }
 
+const KNOWN = ["unit", "unitless", "camelize"];
+
 /** 判断对象是不是「选项」（只含已知选项键） */
 function isOptions(obj) {
-  const KNOWN = ["unit", "unitless", "camelize"];
   const keys = Object.keys(obj);
   return (
     keys.length > 0 &&
@@ -184,9 +189,13 @@ function isOptions(obj) {
 function normalize(styles, { unit, shouldCamelize, unitless }) {
   const out = {};
   styles.forEach((style) => {
-    if (!isPlainObject(style)) return;
+    if (!isPlainObject(style)) {
+      return;
+    }
     for (const rawKey in style) {
-      if (!Object.prototype.hasOwnProperty.call(style, rawKey)) continue;
+      if (!Object.prototype.hasOwnProperty.call(style, rawKey)) {
+        continue;
+      }
       const key = shouldCamelize ? camelize(rawKey) : rawKey;
       const value = style[rawKey];
 
@@ -198,7 +207,7 @@ function normalize(styles, { unit, shouldCamelize, unitless }) {
         if (!warned.has(rawKey)) {
           warned.add(rawKey);
           console.warn(
-            `[toStyle] 嵌套样式 "${rawKey}" 无法用于内联 style，已忽略；需要伪类/媒体查询请用 src/utils/css-in-js`
+            `[toStyle] 嵌套样式 "${rawKey}" 无法用于内联 style，已忽略；伪类/媒体查询请用不支持`
           );
         }
         continue;
@@ -215,9 +224,10 @@ function normalize(styles, { unit, shouldCamelize, unitless }) {
 
 /** 数字 / 字符串 → 带单位的样式值（小工具，便于零散拼样式） */
 export function px(value, unit = "px") {
-  return typeof value === "number" && value !== 0 && isFinite(value)
-    ? `${value}${unit}`
-    : value;
+  if(typeof value === "number" && value !== 0 && isFinite(value)) {
+    return `${value}${unit}`
+  }
+  return value
 }
 
 toStyle.px = px;
