@@ -22,6 +22,7 @@ export const routes = [
   { path: '/grid-demo', name: 'GridDemo', component: () => import('@/views/GridDemo/index.vue') },
   { path: '/nest-demo', name: 'NestDemo', component: () => import('@/views/NestDemo/index.vue') },
   { path: '/skeleton-demo', name: 'SkeletonDemo', component: () => import('@/views/SkeletonDemo/index.vue') },
+  { path: '/vconsole-demo', name: 'VConsoleDemo', component: () => import('@/views/VConsoleDemo/index.vue') },
 ]
 
 export default new VueRouter({

@@ -41,6 +41,7 @@
     "@vue/cli-plugin-babel": "^4.5.19",
     "@vue/cli-plugin-eslint": "^4.5.19",
     "@vue/cli-service": "^4.5.19",
+    "@vue/devtools": "^6.5.0",
     "eslint": "^7.32.0",
     "eslint-plugin-vue": "^8.0.3",
     "sass": "1.77.8",
