@@ -4,168 +4,178 @@
     <p class="vd__tip">
       源码 <code>src/utils/vconsole/index.js</code>（零依赖，样式运行时注入；面板是原生
       DOM，不占 Vue 组件树，也不依赖 scss / vue.config.js）。<br />
-      右下角悬浮球 → <strong>Log / Network / System / Storage</strong> 四个面板，底部命令栏可直接跑
-      JS（↑↓ 翻历史）。本页 <code>mounted</code> 时已自动
-      <code>VConsole.init()</code>，下面每个按钮都会喂数据给它。
+      <strong>面板已在 <code>App.vue</code> 的 <code>created</code> 里全局初始化</strong>（dev-only），
+      是应用级单例 —— 本页不再自己 <code>init()</code>，切到任何路由面板都还在，
+      页面里直接 <code>this.$vconsole.xxx</code> 即可。<br />
+      右下角悬浮球 → <strong>Log / Network / System / Storage</strong> 四个面板（那是 vConsole
+      自己的页签，跟本页的示例页签是两回事），底部命令栏可直接跑 JS（↑↓ 翻历史）。<br />
+      示例按页签归类，每个 <code>el-tab-pane</code> 都带 <code>lazy</code>：<strong>点开哪个才渲染哪个的 DOM</strong>，
+      切回来时内容与已喂进去的数据都还在。
     </p>
 
-    <!-- ===================== ① 总控 ===================== -->
-    <el-card shadow="never" class="vd__card vd__card--ctrl">
-      <div slot="header">① 总控 · init / 显隐 / 位置 / 悬浮球</div>
-      <div class="vd-ctrl">
-        <el-button
-          size="small"
-          :type="inited ? 'danger' : 'primary'"
-          @click="toggleInit"
-        >
-          {{ inited ? "destroy()" : "init()" }}
-        </el-button>
-        <el-button size="small" @click="api.show">show()</el-button>
-        <el-button size="small" @click="api.hide">hide()</el-button>
-        <el-button size="small" @click="api.toggle">toggle()</el-button>
-        <el-button size="small" @click="api.clear">clear()</el-button>
-        <el-switch v-model="ballVisible" active-text="悬浮球" @change="onBall" />
-        <el-radio-group v-model="posKey" size="mini" @change="onPos">
-          <el-radio-button label="rb">右下</el-radio-button>
-          <el-radio-button label="lb">左下</el-radio-button>
-          <el-radio-button label="rt">右上</el-radio-button>
-        </el-radio-group>
-      </div>
-      <p class="vd__tip vd__tip--inline">
-        实时状态：inited = <b>{{ inited }}</b> &nbsp;·&nbsp; open = <b>{{ open }}</b> &nbsp;·&nbsp;
-        tab = <b>{{ curTab }}</b> &nbsp;·&nbsp; logs = <b>{{ logsCount }}</b> &nbsp;·&nbsp; networks =
-        <b>{{ netsCount }}</b> &nbsp;·&nbsp; 未读角标 = <b>{{ badge }}</b>
-      </p>
-      <p class="vd__tip vd__tip--inline">
-        <code>destroy()</code> 会把 <code>console</code> / <code>XMLHttpRequest</code> /
-        <code>fetch</code> 和错误监听<strong>原样还回去</strong>，并移除面板 DOM
-        与注入的样式 —— 所以生产环境可以安全地只在 dev 打开。
-      </p>
-      <pre class="vd__code">{{ CODE.init }}</pre>
-    </el-card>
+    <!-- 常驻状态条：不随页签切换，任何页签下都能看到实时状态 -->
+    <div class="vd__status">
+      <span class="vd__status-dot" :class="inited ? 'is-on' : 'is-off'"></span>
+      <span>inited = <b>{{ inited }}</b><em>（由 App.vue 初始化）</em></span>
+      <span>open = <b>{{ open }}</b></span>
+      <span>vConsole tab = <b>{{ curTab }}</b></span>
+      <span>logs = <b>{{ logsCount }}</b></span>
+      <span>networks = <b>{{ netsCount }}</b></span>
+      <span>未读角标 = <b>{{ badge }}</b></span>
+    </div>
 
-    <!-- ===================== ② Log ===================== -->
-    <el-card shadow="never" class="vd__card">
-      <div slot="header">② Log 面板 · 拦截 console + 未捕获错误</div>
-      <div class="vd-btns">
-        <el-button size="small" @click="logPlain">log 多参数 + 对象</el-button>
-        <el-button size="small" @click="logInfo">info + 数组</el-button>
-        <el-button size="small" @click="logWarn">warn</el-button>
-        <el-button size="small" @click="logError">error（Error 对象带 stack）</el-button>
-        <el-button size="small" @click="logCircular">循环引用对象</el-button>
-        <el-button size="small" @click="logLong">超长字符串</el-button>
-        <el-button size="small" @click="logNode">DOM 节点 / Vue 实例</el-button>
-        <el-button size="small" type="warning" @click="logThrow">
-          未捕获错误 → onerror
-        </el-button>
-        <el-button size="small" type="warning" @click="logReject">
-          未处理 rejection
-        </el-button>
-        <el-button size="small" type="primary" @click="logDirect">
-          走 API 主动写日志
-        </el-button>
-      </div>
-      <p class="vd__tip vd__tip--inline">
-        面板收起时新日志会在悬浮球上累计<strong>红色角标</strong>（只统计 error / warn），切到 Log
-        面板自动清零。<br />
-        单条日志点击可展开完整内容（默认限高 4.6em，长堆栈 / 大对象不会把面板撑爆）。
-      </p>
-      <pre class="vd__code">{{ CODE.log }}</pre>
-    </el-card>
+    <el-tabs v-model="activeTab" type="border-card" class="vd__tabs" @tab-click="onTabClick">
+      <!-- ===================== ① 总控 ===================== -->
+      <el-tab-pane label="① 总控" name="ctrl" lazy>
+        <div class="vd__ctrl">
+          <el-button size="small" :type="inited ? 'danger' : 'primary'" @click="toggleInit">
+            {{ inited ? "destroy()" : "init()" }}
+          </el-button>
+          <el-button size="small" @click="api.show">show()</el-button>
+          <el-button size="small" @click="api.hide">hide()</el-button>
+          <el-button size="small" @click="api.toggle">toggle()</el-button>
+          <el-button size="small" @click="api.clear">clear()</el-button>
+          <el-switch v-model="ballVisible" active-text="悬浮球" @change="onBall" />
+          <el-radio-group v-model="posKey" size="mini" @change="onPos">
+            <el-radio-button label="rb">右下</el-radio-button>
+            <el-radio-button label="lb">左下</el-radio-button>
+            <el-radio-button label="rt">右上</el-radio-button>
+          </el-radio-group>
+          <el-button size="small" plain @click="$router.push('/grid-demo')">
+            跳到 /grid-demo 看面板还在 →
+          </el-button>
+        </div>
+        <p class="vd__tip vd__tip--inline">
+          面板由 <code>App.vue</code> 的 <code>created</code> 里 <code>VConsole.init()</code>
+          <strong>全局初始化一次</strong>（仅非生产环境），所以：
+          <strong>换路由不重建面板</strong>，日志、网络记录、命令历史全程保留；
+          页面组件里直接 <code>this.$vconsole.log(...)</code>。<br />
+          ⚠️ 反过来说，本页点 <code>destroy()</code> 是<strong>全局生效</strong>的
+          —— 面板会连同 <code>console</code> / <code>XHR</code> / <code>fetch</code> 包装一起被还原，
+          其它页面也就没有面板了（再点一次 <code>init()</code> 即可恢复）。
+        </p>
+        <pre class="vd__code">{{ CODE.init }}</pre>
+      </el-tab-pane>
 
-    <!-- ===================== ③ Network ===================== -->
-    <el-card shadow="never" class="vd__card">
-      <div slot="header">③ Network 面板 · 拦截 XHR + fetch</div>
-      <div class="vd-btns">
-        <el-button size="small" @click="netXhr200">XHR GET /（200）</el-button>
-        <el-button size="small" @click="netXhr404">XHR GET 不存在的路径</el-button>
-        <el-button size="small" type="warning" @click="netXhrError">XHR 非法协议（status 0）</el-button>
-        <el-button size="small" @click="netFetch200">fetch GET /（200）</el-button>
-        <el-button size="small" @click="netFetchPost">fetch POST（带 body / 自定义头）</el-button>
-        <el-button size="small" type="warning" @click="netFetchFail">
-          fetch 拒绝（非法协议）
+      <!-- ===================== ② Log ===================== -->
+      <el-tab-pane label="② Log" name="log" lazy>
+        <div class="vd__btns">
+          <el-button size="small" @click="logPlain">log 多参数 + 对象</el-button>
+          <el-button size="small" @click="logInfo">info + 数组</el-button>
+          <el-button size="small" @click="logWarn">warn</el-button>
+          <el-button size="small" @click="logError">error（Error 对象带 stack）</el-button>
+          <el-button size="small" @click="logCircular">循环引用对象</el-button>
+          <el-button size="small" @click="logLong">超长字符串</el-button>
+          <el-button size="small" @click="logNode">Vue 实例（$props / $data）</el-button>
+          <el-button size="small" type="warning" @click="logThrow">
+            未捕获错误 → onerror
+          </el-button>
+          <el-button size="small" type="warning" @click="logReject">
+            未处理 rejection
+          </el-button>
+          <el-button size="small" type="primary" @click="logDirect">
+            走 API 主动写日志
+          </el-button>
+        </div>
+        <p class="vd__tip vd__tip--inline">
+          面板收起时新日志会在悬浮球上累计<strong>红色角标</strong>（只统计 error / warn），切到 Log
+          面板自动清零。<br />
+          单条日志点击可展开完整内容（默认限高 4.6em，长堆栈 / 大对象不会把面板撑爆）。<br />
+          <strong>Vue 实例不会糊一屏内部字段</strong>：面板只列
+          <code>$props</code>（并标出父组件真正传了哪几个、哪些走的 default）和 <code>$data</code>，
+          顶上带 <code>uid</code> 定位。
+        </p>
+        <pre class="vd__code">{{ CODE.log }}</pre>
+      </el-tab-pane>
+
+      <!-- ===================== ③ Network ===================== -->
+      <el-tab-pane label="③ Network" name="network" lazy>
+        <div class="vd__btns">
+          <el-button size="small" @click="netXhr200">XHR GET /（200）</el-button>
+          <el-button size="small" @click="netXhr404">XHR GET 不存在的路径</el-button>
+          <el-button size="small" type="warning" @click="netXhrError">XHR 非法协议（status 0）</el-button>
+          <el-button size="small" @click="netFetch200">fetch GET /（200）</el-button>
+          <el-button size="small" @click="netFetchPost">fetch POST（带 body / 自定义头）</el-button>
+          <el-button size="small" type="warning" @click="netFetchFail">
+            fetch 拒绝（非法协议）
+          </el-button>
+          <el-button size="small" @click="api.switchTab('network'); api.show()">
+            切到 Network 面板
+          </el-button>
+        </div>
+        <p class="vd__tip vd__tip--inline">
+          点网络条目<strong>展开</strong>：URL、状态、耗时、请求头 / 请求体 / 响应头 / 响应体（各截断
+          <code>maxBody</code> 字符）。<br />
+          ⚠️ 顺带一个 dev 陷阱：「不存在的路径」在 dev server 下<strong>也是 200</strong> ——
+          CLI 4 的 <code>historyApiFallback</code> 会把未知路径（<code>.js</code> 后缀也一样）
+          rewrite 成 <code>index.html</code>。想验证 4xx / 5xx 的红色条目，用「非法协议」那个按钮。<br />
+          fetch 的响应体是<strong>异步读的</strong> —— 面板内部在 <code>then</code>
+          里立刻 <code>res.clone()</code>，展开时才 <code>text()</code>，既不消耗业务那份响应，也不阻塞渲染。
+        </p>
+        <pre class="vd__code">{{ CODE.network }}</pre>
+      </el-tab-pane>
+
+      <!-- ===================== ④ System ===================== -->
+      <el-tab-pane label="④ System" name="system" lazy>
+        <el-button size="small" type="primary" @click="api.switchTab('system'); api.show()">
+          打开 System 面板
         </el-button>
-        <el-button size="small" @click="api.switchTab('network'); api.show()">
-          切到 Network 面板
-        </el-button>
-      </div>
-      <p class="vd__tip vd__tip--inline">
-        点网络条目<strong>展开</strong>：URL、状态、耗时、请求头 / 请求体 / 响应头 / 响应体（各截断
-        <code>maxBody</code> 字符）。<br />
-        ⚠️ 顺带一个 dev 陷阱：「不存在的路径」在 dev server 下<strong>也是 200</strong> ——
-        CLI 4 的 <code>historyApiFallback</code> 会把未知路径（<code>.js</code> 后缀也一样）
-        rewrite 成 <code>index.html</code>。想验证 4xx / 5xx 的红色条目，用「非法协议」那个按钮。<br />
-        fetch 的响应体是<strong>异步读的</strong> —— 面板内部在 <code>then</code>
-        里立刻 <code>res.clone()</code>，展开时才 <code>text()</code>，既不消耗业务那份响应，也不阻塞渲染。
-      </p>
-      <pre class="vd__code">{{ CODE.network }}</pre>
-    </el-card>
+        <p class="vd__tip vd__tip--inline">
+          UA、平台、语言、屏幕、视口、DPR、在线状态、网络类型（<code>navigator.connection</code>）、
+          时区、Cookie 开关、JS 堆占用、当前地址、面板打开时间。切到该面板时实时采集，面板内点「刷新」可重取。
+        </p>
+      </el-tab-pane>
 
-    <!-- ===================== ④ System ===================== -->
-    <el-card shadow="never" class="vd__card">
-      <div slot="header">④ System 面板 · 环境信息</div>
-      <el-button size="small" type="primary" @click="api.switchTab('system'); api.show()">
-        打开 System 面板
-      </el-button>
-      <p class="vd__tip vd__tip--inline">
-        UA、平台、语言、屏幕、视口、DPR、在线状态、网络类型（<code>navigator.connection</code>）、
-        时区、Cookie 开关、JS 堆占用、当前地址、面板打开时间。切到该面板时实时采集，面板内点「刷新」可重取。
-      </p>
-    </el-card>
+      <!-- ===================== ⑤ Storage ===================== -->
+      <el-tab-pane label="⑤ Storage" name="storage" lazy>
+        <div class="vd__btns">
+          <el-button size="small" type="primary" @click="seedStorage">写入测试数据</el-button>
+          <el-button size="small" @click="clearStorage">清掉测试数据</el-button>
+          <el-button size="small" @click="api.switchTab('storage'); api.show()">
+            打开 Storage 面板
+          </el-button>
+        </div>
+        <p class="vd__tip vd__tip--inline">
+          面板里每项后面都有「删除」按钮 —— <strong>点它是真的删</strong>（
+          <code>removeItem</code>），不只是展示。cookie 那组用
+          <code>max-age=0</code> 删除。
+        </p>
+        <pre class="vd__code">{{ CODE.storage }}</pre>
+      </el-tab-pane>
 
-    <!-- ===================== ⑤ Storage ===================== -->
-    <el-card shadow="never" class="vd__card">
-      <div slot="header">⑤ Storage 面板 · localStorage / sessionStorage / cookie</div>
-      <div class="vd-btns">
-        <el-button size="small" type="primary" @click="seedStorage">写入测试数据</el-button>
-        <el-button size="small" @click="clearStorage">清掉测试数据</el-button>
-        <el-button size="small" @click="api.switchTab('storage'); api.show()">
-          打开 Storage 面板
-        </el-button>
-      </div>
-      <p class="vd__tip vd__tip--inline">
-        面板里每项后面都有「删除」按钮 —— <strong>点它是真的删</strong>（
-        <code>removeItem</code>），不只是展示。cookie 那组用
-        <code>max-age=0</code> 删除。
-      </p>
-      <pre class="vd__code">{{ CODE.storage }}</pre>
-    </el-card>
+      <!-- ===================== ⑥ 命令栏 ===================== -->
+      <el-tab-pane label="⑥ 命令栏" name="cmd" lazy>
+        <p class="vd__sub">打开面板后，底部输入框回车即执行；<code>↑</code> <code>↓</code> 翻历史。</p>
+        <pre class="vd__code">{{ CODE.cmd }}</pre>
+        <p class="vd__tip vd__tip--inline">
+          实现是「先当表达式求值（<code>return (code)</code>），失败再当语句执行」，所以
+          <code>location.href</code> 和 <code>localStorage.setItem('a', 1)</code> 都能跑。
+          用 <code>new Function</code> 构造 —— <strong>页面 CSP 若禁了 <code>unsafe-eval</code> 会抛错</strong>，
+          面板会把异常打到 Log 里，不会静默。
+        </p>
+      </el-tab-pane>
 
-    <!-- ===================== ⑥ 命令栏 ===================== -->
-    <el-card shadow="never" class="vd__card">
-      <div slot="header">⑥ 底部命令栏 · 直接跑 JS</div>
-      <p class="vd__sub">打开面板后，底部输入框回车即执行；<code>↑</code> <code>↓</code> 翻历史。</p>
-      <pre class="vd__code">{{ CODE.cmd }}</pre>
-      <p class="vd__tip vd__tip--inline">
-        实现是「先当表达式求值（<code>return (code)</code>），失败再当语句执行」，所以
-        <code>location.href</code> 和 <code>localStorage.setItem('a', 1)</code> 都能跑。
-        用 <code>new Function</code> 构造 —— <strong>页面 CSP 若禁了 <code>unsafe-eval</code> 会抛错</strong>，
-        面板会把异常打到 Log 里，不会静默。
-      </p>
-    </el-card>
+      <!-- ===================== ⑦ API 速查 ===================== -->
+      <el-tab-pane label="⑦ API 速查" name="api" lazy>
+        <el-table ref="apiTable" :data="apiRows" size="mini" border stripe class="vd-table">
+          <el-table-column prop="name" label="方法" width="210" />
+          <el-table-column prop="desc" label="说明" />
+        </el-table>
+        <p class="vd__tip vd__tip--inline">
+          入口已在模块作用域 <code>install(Vue)</code>，所以组件里可直接写
+          <code>this.$vconsole.log(...)</code>（等价于上面的默认导出对象）。
+        </p>
+      </el-tab-pane>
 
-    <!-- ===================== ⑦ API 速查 ===================== -->
-    <el-card shadow="never" class="vd__card">
-      <div slot="header">⑦ API 速查</div>
-      <el-table :data="apiRows" size="mini" border stripe class="vd-table">
-        <el-table-column prop="name" label="方法" width="210" />
-        <el-table-column prop="desc" label="说明" />
-      </el-table>
-      <p class="vd__tip vd__tip--inline">
-        入口已在模块作用域 <code>install(Vue)</code>，所以组件里可直接写
-        <code>this.$vconsole.log(...)</code>（等价于上面的默认导出对象）。
-      </p>
-    </el-card>
-
-    <!-- ===================== ⑧ 注意事项 ===================== -->
-    <el-card shadow="never" class="vd__card">
-      <div slot="header">⑧ 注意事项</div>
-      <el-table :data="notes" size="mini" border class="vd-table">
-        <el-table-column prop="topic" label="事项" width="140" />
-        <el-table-column prop="detail" label="说明" />
-      </el-table>
-      <pre class="vd__code">{{ CODE.init_guard }}</pre>
-    </el-card>
+      <!-- ===================== ⑧ 注意事项 ===================== -->
+      <el-tab-pane label="⑧ 注意事项" name="notes" lazy>
+        <el-table ref="notesTable" :data="notes" size="mini" border class="vd-table">
+          <el-table-column prop="topic" label="事项" width="140" />
+          <el-table-column prop="detail" label="说明" />
+        </el-table>
+        <pre class="vd__code">{{ CODE.init_guard }}</pre>
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
@@ -189,6 +199,8 @@ export default {
 
   data() {
     return {
+      /** 当前选中的示例页签（el-tab-pane 带 lazy，只有点亮过的才会真正渲染） */
+      activeTab: "ctrl",
       inited: false,
       open: false,
       curTab: "log",
@@ -210,33 +222,44 @@ export default {
         { name: "destroy()", desc: "还原 console / XHR / fetch，移除 DOM 与样式" },
       ],
       notes: [
-        { topic: "生产环境", detail: "不要开：会替换 console / XHR / fetch，面板本身也有体积；用 NODE_ENV 判断" },
+        { topic: "全局初始化", detail: "App.vue 的 created 里 init 一次，所有路由页面共用同一实例；切路由不重建，页面里不要再 init（幂等，重复调用也无害）" },
+        { topic: "生产环境", detail: "不要开：会替换 console / XHR / fetch，面板本身也有体积；App.vue 里用 NODE_ENV 判断，生产构建整段被常量折叠丢掉、不进主包" },
         { topic: "只读不改写", detail: "拦截只做记录，不修改请求参数、不改响应内容，透传原方法" },
         { topic: "上限裁剪", detail: "日志默认 800 条、请求 100 条，数组与 DOM 同步丢最早的，挂着不动也不会涨内存" },
-        { topic: "对象格式化", detail: "JSON.stringify + 祖先栈 replacer，能标出真正的循环引用；Window / DOM / Vue 实例只给短标记" },
+        { topic: "对象格式化", detail: "JSON.stringify + 祖先栈 replacer，能标出真正的循环引用；Window / DOM 只给短标记；Vue 实例只列 $props / $data 摘要（带 uid），不发散内部字段" },
+        { topic: "实例数组 / toJSON 坑", detail: "$findVm() / $getAllVm() 的实例数组逐个给摘要；值里混进实例时会在 JSON 前换成短标记 —— 否则序列化每个对象前读 toJSON 会触发 Vue dev 代理的 [Vue warn]" },
         { topic: "滚动跟随", detail: "只有「面板开着 + 停在 Log + 本来就贴底」才自动滚到底，你上滑看历史时不会被新日志顶走" },
         { topic: "Storage 删除", detail: "面板里的「删除」是真删，操作前自己确认清楚" },
         { topic: "CSP", detail: "命令栏用 new Function，禁了 unsafe-eval 的页面会抛错（异常会打到 Log）" },
         { topic: "入口注册", detail: "模块作用域直接 install(Vue)，import 一次即可；重复 init 无副作用" },
       ],
       CODE: {
-        init: `// main.js —— 只在开发环境开
-import VConsole from '@/utils/vconsole'
-if (process.env.NODE_ENV !== 'production') VConsole.init()
+        init: `// App.vue —— 全局初始化一次，所有路由页面共用同一个面板实例
+export default {
+  name: 'App',
+  created() {
+    if (process.env.NODE_ENV !== 'production') {
+      const vc = require('@/utils/vconsole')
+      ;(vc.default || vc).init()          // harmony 模块 require 进来在 .default 上
+    }
+  },
+  beforeDestroy() {
+    if (process.env.NODE_ENV !== 'production') {
+      const vc = require('@/utils/vconsole')
+      ;(vc.default || vc).destroy()
+    }
+  },
+}
 
-// 带配置
-VConsole.init({
-  ball: true,                                    // 悬浮球
-  position: { right: 12, bottom: 80 },           // 位置
-  maxLogs: 800,                                  // 日志上限
-  maxBody: 1500,                                 // 响应体截断
-  keepConsole: false,                            // 拦截后是否仍输出到原生 console
-  defaultTab: 'log',
-  theme: { accent: '#326fff', ok: '#4ade80' },    // 覆盖 CSS 变量
-})
+// 页面 / 组件里（入口已 install(Vue)），不用再 init
+this.$vconsole.log('任意位置都能写', { a: 1 })
 
-// 组件里（入口已 install(Vue)）
-this.$vconsole.log('任意位置都能写', { a: 1 })`,
+// 想改配置就带参数 init（幂等，重复调用无副作用）
+this.$vconsole.init({
+  position: { right: 12, bottom: 80 },
+  maxLogs: 800,
+  maxBody: 1500,
+})`,
 
         log: `console.log('普通日志', { name: 'vue-work', vue: '2.6.14' })
 console.info('提示：接口已降级', [1, 2, 3])
@@ -248,8 +271,10 @@ const o = { name: 'loop' }
 o.self = o
 console.log('循环引用', o)
 
-// DOM 节点 / Vue 实例不会把整个页面结构打出来，只给短标记
-console.log('节点与实例', document.body, this)     // <body> / [Vue VConsoleDemo]
+// DOM 节点只给短标记；Vue 实例只给 $props / $data 摘要（不发散内部字段）
+console.log('节点与实例', document.body, this)
+// → <body> / [Vue VConsoleDemo · uid:2] + 逐行列出的 $props / $data
+//   其中 $props 会标出「父传了哪几个」，没标的说明走的是 default
 
 // 未被捕获的错误也会自动进面板
 setTimeout(() => { undefinedFn() })              // → window.onerror
@@ -282,7 +307,9 @@ sessionStorage.setItem('vc:tab', 'log')
 > $vconsole.getState().logs.length
 > $vconsole.getState().options
 > new Date().toLocaleString()
-> Array.from({ length: 5 }, (_, i) => i * i)`,
+> Array.from({ length: 5 }, (_, i) => i * i)
+> $findVm('VConsoleDemo')        ← [Vue VConsoleDemo · uid:2] + $props / $data 摘要
+> $getAllVm().length             ← 28（实例数组只会列出前 5 个）`,
 
         init_guard: `// 只有开发环境才开（生产环境即使误开也建议销毁）
 if (process.env.NODE_ENV !== 'production') {
@@ -299,10 +326,11 @@ if (process.env.NODE_ENV !== 'production') {
   },
 
   mounted() {
-    // demo 方便：把 API 挂到 window，命令栏里可以直接 $vconsole.xxx
+    // 面板已由 App.vue 全局 init（dev-only），本页只做两件事：
+    //   1) 把 API 挂到 window，命令栏里可以直接 $vconsole.xxx
+    //   2) 起个定时器，把 vConsole 的内部状态同步回来展示
     window.$vconsole = VConsole;
     window.__page = this;
-    if (!VConsole.getState().inited) VConsole.init();
     this.ballVisible = VConsole.getState().options.ball;
     this.sync();
     // vConsole 的状态在它自己的闭包里，这里定时同步回来展示
@@ -347,6 +375,22 @@ if (process.env.NODE_ENV !== 'production') {
         rt: { right: 12, bottom: "calc(100vh - 64px)" },
       };
       VConsole.setPosition(map[key]);
+    },
+
+    /**
+     * 页签切换：lazy 的 pane 是「首次点亮才挂载」，而 el-table 的列宽是在 mounted 时
+     * 按容器宽度算的 —— 容器刚插入时若还没参与布局，算出来的宽度可能是 0。
+     * 这里等一帧再让表格重算一次，切页签后列宽不会塌。
+     */
+    onTabClick() {
+      this.$nextTick(this.layoutTables);
+    },
+
+    layoutTables() {
+      ["apiTable", "notesTable"].forEach((name) => {
+        const table = this.$refs[name];
+        if (table && typeof table.doLayout === "function") table.doLayout();
+      });
     },
 
     /* ---------------- Log ---------------- */
@@ -476,13 +520,55 @@ if (process.env.NODE_ENV !== 'production') {
     }
   }
 
-  &__card {
-    margin-bottom: 20px;
+  /* 常驻状态条：跨页签可见 */
+  &__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    margin: 0 0 14px;
+    padding: 10px 14px;
+    background: #fff;
+    border: 1px solid #e4e7ed;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #606266;
 
-    &--ctrl {
-      ::v-deep .el-card__header {
-        font-weight: 600;
-      }
+    b {
+      color: #326fff;
+      font-weight: 600;
+    }
+
+    em {
+      margin-left: 4px;
+      font-style: normal;
+      font-size: 12px;
+      color: #909399;
+    }
+  }
+
+  &__status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f56c6c;
+    box-shadow: 0 0 0 3px rgba(245, 108, 108, 0.15);
+
+    &.is-on {
+      background: #52c41a;
+      box-shadow: 0 0 0 3px rgba(82, 196, 26, 0.15);
+    }
+  }
+
+  /* 示例页签 */
+  &__tabs {
+    ::v-deep .el-tabs__content {
+      min-height: 340px;
+      padding: 18px 20px;
+    }
+
+    ::v-deep .el-tab-pane {
+      font-size: 13px;
     }
   }
 

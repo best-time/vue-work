@@ -4,13 +4,32 @@
 不走 Vue 模板、不依赖 `scss` / `vue.config.js`，任何文件 `import` 就能用。
 
 ```js
-// main.js —— 只在开发环境开
-import VConsole from '@/utils/vconsole'
-if (process.env.NODE_ENV !== 'production') VConsole.init()
+// App.vue —— 全局初始化一次，所有路由页面共用同一个面板实例（本项目当前接法）
+export default {
+  name: 'App',
+  created() {
+    if (process.env.NODE_ENV !== 'production') {
+      const vc = require('@/utils/vconsole')
+      ;(vc.default || vc).init()   // harmony 模块被 require 时默认导出在 .default 上
+    }
+  },
+  beforeDestroy() {
+    if (process.env.NODE_ENV !== 'production') {
+      const vc = require('@/utils/vconsole')
+      ;(vc.default || vc).destroy()
+    }
+  },
+}
+
+// 页面 / 组件里不用再 init，直接用（入口已 install(Vue)）
+this.$vconsole.log('任意位置都能写', { a: 1 })
 ```
 
 > ⚠️ 生产环境不要开：它会替换 `console` / `XMLHttpRequest` / `fetch`，面板本身也有体积。
-> 折中做法：用 `process.env.NODE_ENV` 判断，或者只在需要时手动 `VConsole.init()`。
+> 上面的写法里，生产构建时 `'production' !== 'production'` 恒为 false，webpack 的常量折叠会把
+> 整个 if 分支（含 `require`）丢掉 —— **vConsole 不会进主包**（已实测构建产物 grep 不到）。
+> 放 `created` 而不是 `mounted`：子组件的 mounted 先于父组件执行，`created` 能保证页面组件
+> 挂载时面板已就绪；面板 DOM 挂在 `<body>` 下，是应用级单例，切路由不重建。
 
 ---
 
@@ -38,7 +57,8 @@ if (process.env.NODE_ENV !== 'production') VConsole.init()
 | 方法 | 说明 |
 | --- | --- |
 | `VConsole.init(options?)` | 初始化（**幂等**，重复调用无副作用）；`ball: false` 可不开悬浮球 |
-| `VConsole.show()` / `hide()` / `toggle()` | 面板显隐 |
+| `VConsole.isInited()` | 面板是否真的建起来了（已 init 且 DOM 还在文档里） |
+| `VConsole.show()` / `hide()` / `toggle()` | 面板显隐（没 init 过会顺手初始化一次） |
 | `VConsole.clear()` | 清空日志 |
 | `VConsole.switchTab('log'\|'network'\|'system'\|'storage')` | 切面板（会自动打开） |
 | `VConsole.setBallVisible(bool)` | 显隐悬浮球 |
@@ -139,14 +159,47 @@ if (process.env.NODE_ENV === 'development') {
 - **入口注册**：模块作用域直接 `install(Vue)`（项目约定），不依赖 `window.Vue`。
 - **日志裁剪**：`logs` 数组和 DOM 子节点同步 `splice / removeChild`，长时间挂着也不会越滚越大。
 - **不自我递归**：拦截前先把原生方法 `bind(console)` 存起来，`keepConsole` 时走这份原生引用。
-- **对象格式化**：`JSON.stringify` + MDN 的「祖先栈」replacer —— 能正确标出真正的循环引用（兄弟节点重复出现的同一对象不会被误判成环）；`Window` / `Document` / Vue 实例 / DOM 节点都给短标记，不会把页面结构整个打出来。
+- **对象格式化**：`JSON.stringify` + MDN 的「祖先栈」replacer —— 能正确标出真正的循环引用（兄弟节点重复出现的同一对象不会被误判成环）；`Window` / `Document` / DOM 节点给短标记（`[Window]` / `<div.class>`）。**Vue 实例**不做 `JSON.stringify`（几百个 `_` 开头的内部字段 + 满屏循环引用），只转成两块摘要：`$props`（生效值，并标出父组件真正传了哪几个、哪些走 default）+ `$data`，顶上带 `[Vue 名字 · uid:N]`；长字符串、数组、大对象在摘要里进一步压成 `"abc…+98"` / `[…×9]` / `{…12 个键}`，单条日志点开可看全。
+- **实例数组单独走一条路**：`$findVm()` / `$getAllVm()` 返回的是实例数组，整体 `JSON.stringify` 有两个后果 —— ① 刷一屏 `[Vue warn] Property or method "toJSON" is not defined ...`（规范里 `toJSON` 的读取发生在 replacer **之前**，replacer 拦不住；Vue 2 的 dev 代理对实例上不存在的属性就会 warn），② 把整个组件树序列化出来。所以实例数组改成逐个 `formatArg`（每个给一份摘要，>5 个只列前 5 个），其它值进 `JSON.stringify` 之前先过一遍 `sanitizeForJson()`，把任意深度里的实例换成 `[Vue 名字 · uid:N]`（顺带处理循环引用 / DOM / Error / Date / RegExp，且**不调用**用户对象的 `toJSON`）。实测命令栏跑 `$findVm('GridDemo')` 从 51 条 warn → 0 条，1ms 内出结果。
 - **异步响应体**：fetch 在 `then` 里立刻 `res.clone()`，展开条目时才 `text()`，既不消耗业务拿到的那份响应，也不阻塞渲染。
 - **滚动跟随**：只有在「面板开着 + 停在 Log + 本来就贴着底部」时才自动滚到底，你上滑看历史时不会被新日志顶走。
 - **销毁干净**：`destroy()` 把 `console`、`XMLHttpRequest.prototype.open/send/setRequestHeader`、`window.fetch`、错误监听、DOM、样式全部还原。
 
 ---
 
-## 五、和真 vConsole 的差距
+## 五、容错：这些情况都不会炸
+
+面板 DOM、浏览器全局、被替换掉的原生方法，任何一样拿不到都不应该让业务代码崩。取值统一走
+`elOf() / listOf()`（内部判 `nodeType` + `isConnected`），拿不到就当作「没有面板」，静默跳过：
+
+| 场景 | 行为 |
+| --- | --- |
+| 没 `init()` 就调 `hide / switchTab / clear / addLog / setPosition / setBallVisible / destroy` | 不抛；配置先存下来，下次 `init` 自动生效 |
+| 没 `init()` 就 `show()` / `toggle()` | 顺手初始化一次（而不是报 `Cannot read classList of undefined`） |
+| `destroy()` 之后调任何 API | 不抛；日志仍进 `state.logs`，下次 `init` 会补渲染 |
+| 面板 DOM 被业务代码摘掉（`el.root` 不存在 / 已脱离文档） | 按「没有面板」处理，只记录不渲染（不再往野节点上写） |
+| 单个元素缺失（badge、`logs` 列表、命令栏输入框） | 只跳过涉及它的更新：角标、滚动到底、追加 DOM 全部判空 |
+| `logs` 列表已脱离文档（`parentNode` 为 null） | 滚动跟随安全退出（原先会在这里抛） |
+| 脚本写在 `<head>` 里同步执行、`document.body` 还没解析出来 | `init()` 挂一次 `DOMContentLoaded`，DOM 就绪后自动补建，不丢这次调用 |
+| 非浏览器环境（SSR / Node / 单测） | `init()` 直接返回 API；`document / window / navigator / screen / performance / Intl` 逐个 `typeof` 兜底 |
+| `console` 被冻结 / 只读（部分沙箱） | 跳过该方法的接管，其它方法照常拦截；`destroy()` 写不回去也不抛 |
+| `localStorage` / `sessionStorage` 被禁用或中途失效（隐私模式） | 显示「不可用」，渲染时不抛；单条读取失败显示「（读取失败）」 |
+| cookie 被沙箱禁用（`document.cookie` 抛 `SecurityError`） | 显示 0 项 |
+| cookie 值含非法百分号转义 | `safeDecode` 兜住，不抛 `URIError` |
+| XHR 实例不可扩展 / 原型只读 | 放弃记录或整块还原，**请求照发** |
+| `fetch` 被其它库包成不返回 Promise | 原样转发，不记录 |
+| `init()` 中途任何一步出错 | 回滚 `inited` 标记 + 打一条 `[vconsole] 初始化失败`，不让 import 方崩掉 |
+
+另外顺手修了一个真 bug：fetch 记录原来存的是**原响应**而不是 `res.clone()`，展开详情读响应体时会把业务那份吃掉的流转走——
+调用方的 `res.text()` 就会报 `body stream already read`。现在存的是真克隆。
+
+验证：CDP 驱动真实 Chrome，`/tmp/vconsole-test/tolerance.cjs` **78 项断言全过**（destroy 后调用 / DOM 被摘 / console 冻结 /
+fetch 克隆 / `document.body` 缺失 + `DOMContentLoaded` 延迟 / 正常功能回归），**零页面告警零异常**；
+同一份改动下 debug 助手 51 项断言在两条路由也仍全过。
+
+---
+
+## 六、和真 vConsole 的差距
 
 想更全（Plugin 机制、`Log` 的 `$` 选择器、DOM 树查看、XHR 断点、性能面板）请直接上
 [vConsole](https://github.com/Tencent/vConsole) —— 本实现是「够用 + 可读 + 零依赖」，

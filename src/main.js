@@ -15,10 +15,8 @@ import '@/components/GridBox' // CSS Grid 非响应式栅格（props 驱动）�
 import '@/utils/skeleton' // 简易骨架屏：v-skeleton 指令 + sk* 占位块工具（运行时注入样式）
 
 
-// 简易 vConsole（移动端调试面板）按需开启，默认不引入（生产环境不要开）：
-//   import VConsole from '@/utils/vconsole'
-//   if (process.env.NODE_ENV !== 'production') VConsole.init()
-// 演示见 /vconsole-demo
+// 简易 vConsole（移动端调试面板）在 App.vue 的 created 里全局初始化（dev-only，生产不进主包），
+// 所有路由页面共用同一个面板实例，页面里直接 this.$vconsole.xxx 就行。演示见 /vconsole-demo
 
 Vue.use(ElementUI)
 

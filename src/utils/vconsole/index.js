@@ -68,7 +68,7 @@ const DEFAULTS = {
   position: { right: 12, bottom: 80 }, // 悬浮球 / 面板位置
   maxLogs: 800, // 日志上限（超出丢最早的）
   maxNetworks: 100, // 请求上限
-  maxBody: 1500, // 文本 / 响应体截断长度
+  maxBody: 2000, // 文本 / 响应体截断长度
   captureConsole: true, // 拦截 console
   captureError: true, // 拦截 window.onerror / unhandledrejection
   captureNetwork: true, // 拦截 XHR / fetch
@@ -106,7 +106,63 @@ const state = {
   el: {}, // DOM 引用
   saved: {}, // 被替换掉的原生方法
   bound: {}, // 事件处理函数（destroy 时要摘）
+  building: false, // init 执行中（防止 ensureReady 递归）
+  pendingInit: false, // 已挂过 DOMContentLoaded 等 body
 };
+
+/* ------------------------------------------------------------------ *
+ * 容错取值器
+ *   面板 DOM 与浏览器全局都可能不存在，比如：
+ *     · 没 init 就调 API        → state.el 还是空对象
+ *     · destroy() 之后          → el 被清空、root 已脱离文档
+ *     · 脚本写在 <head> 同步执行 → document.body 还是 null
+ *     · 跑在非浏览器环境(SSR/Node) → window / document 都没有
+ *   下面这些取值器保证这些情况下「拿不到就安静退出」，永不抛 TypeError。
+ * ------------------------------------------------------------------ */
+
+/** 取面板元素；拿不到（未 init / 已 destroy / 已脱离文档）返回 null */
+function elOf(name) {
+  const el = state.el;
+  const node = el && el[name];
+  if (!node || node.nodeType !== 1) {
+    return null;
+  }
+  // 被业务代码从 DOM 里摘走了 → 当成「没有面板」，别往野节点上写
+  // （isConnected 老环境没有，undefined 时按可用处理）
+  if (node.isConnected === false) {
+    return null;
+  }
+  return node;
+}
+
+/** 取元素集合（navItems / tabs）；拿不到给空数组，调用方可放心 forEach */
+function listOf(name) {
+  const el = state.el;
+  const arr = el && el[name];
+  return Array.isArray(arr) ? arr : [];
+}
+
+/** 面板是否已真的建起来 */
+function hasDom() {
+  return !!elOf("root");
+}
+
+/** 没 init 就用到面板（show / toggle）时顺手初始化一次，别直接报错 */
+function ensureReady() {
+  if (state.inited || state.building) {
+    return;
+  }
+  init();
+}
+
+/** decodeURIComponent 遇到坏字节会抛错，兜一层 */
+function safeDecode(v) {
+  try {
+    return decodeURIComponent(v);
+  } catch (e) {
+    return v;
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * 格式化
@@ -130,7 +186,9 @@ function fmtTime(ts) {
 function truncate(text, limit) {
   const max = limit || state.options.maxBody;
   const s = String(text);
-  return s.length > max ? s.slice(0, max) + "\n… 已截断，共 " + s.length + " 字符" : s;
+  return s.length > max
+    ? s.slice(0, max) + "\n… 已截断，共 " + s.length + " 字符"
+    : s;
 }
 
 /** MDN 经典循环引用 replacer：用祖先栈判断真正的环 */
@@ -138,17 +196,192 @@ function circularReplacer(depth) {
   const ancestors = [];
   const maxDepth = typeof depth === "number" ? depth : 6;
   return function (key, value) {
-    if (typeof value === "function") return "ƒ " + (value.name || "anonymous") + "()";
+    if (typeof value === "function")
+      return "ƒ " + (value.name || "anonymous") + "()";
     if (typeof value === "bigint") return value.toString() + "n";
     if (value === undefined) return "undefined";
     if (typeof value !== "object" || value === null) return value;
     // 一直弹到「当前节点的父节点」
-    while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) ancestors.pop();
+    while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this)
+      ancestors.pop();
     if (ancestors.length > maxDepth) return "[Object]";
     if (ancestors.indexOf(value) !== -1) return "[Circular]";
     ancestors.push(value);
     return value;
   };
+}
+
+/** 判断是不是 Vue 2 实例（`_isVue` 挂在原型上，生产构建同样有） */
+function isVueInstance(v) {
+  return !!(v && typeof v === "object" && (v._isVue === true || (typeof v._uid === "number" && v.$options)));
+}
+
+/** 实例显示名：$options.name → 注册标签 → Root / Anonymous */
+function vmDisplayName(vm) {
+  const opts = vm.$options || {};
+  if (opts.name) return opts.name;
+  if (opts._componentTag) return opts._componentTag;
+  if (vm.$vnode && vm.$vnode.tag) return String(vm.$vnode.tag).replace(/^vue-component-\d+-/, "");
+  return vm.$parent ? "Anonymous" : "Root";
+}
+
+/** 实例短标记：`[Vue 名字 · uid:N]` */
+function vmTag(vm) {
+  return "[Vue " + vmDisplayName(vm) + " · uid:" + vm._uid + "]";
+}
+
+/** 单个值的短表示：长字符串、大对象、数组都压成一行，别把面板撑爆 */
+function shortValue(v, depth) {
+  const d = typeof depth === "number" ? depth : 0;
+  if (v === null) return "null";
+  if (v === undefined) return "undefined";
+  const t = typeof v;
+  if (t === "string") {
+    return v.length > 30
+      ? JSON.stringify(v.slice(0, 30) + "…+" + (v.length - 30))
+      : JSON.stringify(v);
+  }
+  if (t === "number" || t === "boolean") return String(v);
+  if (t === "function") return "ƒ " + (v.name || "anonymous") + "()";
+  if (t === "symbol") return v.toString();
+  if (t === "bigint") return v.toString() + "n";
+  if (v instanceof Error) return (v.name || "Error") + ": " + v.message;
+  if (Array.isArray(v)) {
+    if (d >= 1) return "[…×" + v.length + "]";
+    return (
+      "[" +
+      v.slice(0, 4).map((x) => shortValue(x, d + 1)).join(", ") +
+      (v.length > 4 ? ", …+" + (v.length - 4) : "") +
+      "]"
+    );
+  }
+  if (isVueInstance(v)) return vmTag(v);
+  if (v.nodeType === 1) return "<" + v.tagName.toLowerCase() + ">";
+  if (t === "object") {
+    const keys = Object.keys(v);
+    if (d >= 1) return "{…" + keys.length + "}";
+    if (keys.length <= 4) {
+      return "{" + keys.map((k) => k + ": " + shortValue(v[k], d + 1)).join(", ") + "}";
+    }
+    return "{…" + keys.length + " 个键}";
+  }
+  return String(v);
+}
+
+/** 键值块：每个键占一行，超过 max 行只列剩余键名 */
+function keyLines(obj, max) {
+  const keys = obj ? Object.keys(obj) : [];
+  if (!keys.length) return ["  （无）"];
+  const limit = max || 15;
+  const lines = keys.slice(0, limit).map((k) => "  " + k + ": " + shortValue(obj[k]));
+  if (keys.length > limit) {
+    lines.push("  …还有 " + (keys.length - limit) + " 个键：" + keys.slice(limit).join(", "));
+  }
+  return lines;
+}
+
+/**
+ * Vue 实例摘要。
+ * 不能直接 JSON.stringify 整个实例 —— 几百个 `_` 开头的内部字段 + 满屏循环引用。
+ * 只列开发者真正关心的两块：$props（生效值，并标出父组件真正传了哪几个）、$data。
+ */
+function formatVueInstance(vm) {
+  const opts = vm.$options || {};
+  const props = vm.$props || {};
+  const passed = opts.propsData || {};
+  const data = vm.$data || {};
+
+  const lines = [vmTag(vm)];
+  lines.push(
+    "$props (" +
+      Object.keys(props).length +
+      ")" +
+      (Object.keys(passed).length ? "  ← 父传: " + Object.keys(passed).join(", ") : "  ← 全走 default")
+  );
+  lines.push.apply(lines, keyLines(props, 12));
+  lines.push("$data (" + Object.keys(data).length + ")");
+  lines.push.apply(lines, keyLines(data, 15));
+  return truncate(lines.join("\n"));
+}
+
+/* ---------- JSON 安全化 / 实例数组 ---------- */
+
+const JSON_MAX_DEPTH = 8;
+const JSON_MAX_ITEMS = 100;
+const MAX_VM_IN_ARRAY = 5;
+
+/**
+ * 数组里（限深度 / 限个数）是否混着 Vue 实例。
+ * `$findVm()` / `$getAllVm()` 返回的就是实例数组，是 vConsole 命令栏里最常见的用法。
+ */
+function hasVueInstance(arr, depth) {
+  const d = depth || 0;
+  if (d > 3) return false;
+  const n = Math.min(arr.length, 60);
+  for (let i = 0; i < n; i++) {
+    const item = arr[i];
+    if (isVueInstance(item)) return true;
+    if (item && typeof item === "object" && Array.isArray(item) && hasVueInstance(item, d + 1)) return true;
+  }
+  return false;
+}
+
+/** 实例数组：逐个给 $props / $data 摘要（多于 MAX_VM_IN_ARRAY 个只列前几个） */
+function formatVmArray(arr) {
+  const n = Math.min(arr.length, MAX_VM_IN_ARRAY);
+  const parts = [];
+  for (let i = 0; i < n; i++) {
+    parts.push((arr.length > 1 ? "#" + i + "  " : "") + formatArg(arr[i]));
+  }
+  if (arr.length > n) parts.push("… 还有 " + (arr.length - n) + " 个（用 [i] 取单个）");
+  return truncate("[" + arr.length + " 项]\n" + parts.join("\n"));
+}
+
+/**
+ * JSON 前的安全化：**实例一律换成短标记**。
+ *
+ * 为什么不能直接 `JSON.stringify(值)`：规范里序列化每个对象前会先读它的 `toJSON`
+ * （而且这一步在 replacer 之前执行，replacer 拦不住），Vue 2 的 dev 代理对实例上
+ * 不存在的属性会报
+ *   [Vue warn]: Property or method "toJSON" is not defined on the instance but referenced during render
+ * —— 于是只要值里混进 Vue 实例（$findVm() 的结果、store / props 里存着组件实例…），
+ * 日志一刷就是一屏 warn，顺带把整个组件树（含 _data / _watcher / $parent 环路）序列化出来。
+ *
+ * 这里在限定的深度内把实例换成 `[Vue 名字 · uid:N]`，并顺手处理循环引用 / DOM / Error /
+ * Date / RegExp（这些是 JSON.stringify 的常客坑），再把「绝对干净」的结果交给 JSON.stringify。
+ * 注意：本函数不调用用户对象的 `toJSON`，避免任何对象自己再抛错或返回实例。
+ */
+function sanitizeForJson(value, depth, seen) {
+  if (value === null || typeof value !== "object") return value;
+  if (isVueInstance(value)) return vmTag(value);
+  if (typeof window !== "undefined" && value === window) return "[Window]";
+  if (typeof document !== "undefined" && value === document) return "[Document]";
+  const d = depth || 0;
+  const stack = seen || [];
+  if (d >= JSON_MAX_DEPTH) return "[Object]";
+  if (stack.indexOf(value) !== -1) return "[Circular]";
+  if (value instanceof Date) return isNaN(value.getTime()) ? "[Invalid Date]" : value.toISOString();
+  if (value instanceof RegExp) return String(value);
+  if (value instanceof Error) return String(value.stack || value.message);
+  if (value.nodeType === 1) return "<" + String(value.tagName).toLowerCase() + ">";
+  if (typeof value.nodeType === "number" && typeof value.nodeName === "string") {
+    return "<" + String(value.nodeName).toLowerCase() + ">";
+  }
+
+  stack.push(value);
+  let out;
+  if (Array.isArray(value)) {
+    out = value.slice(0, JSON_MAX_ITEMS).map((x) => sanitizeForJson(x, d + 1, stack));
+    if (value.length > JSON_MAX_ITEMS) out.push("… 还有 " + (value.length - JSON_MAX_ITEMS) + " 项");
+  } else {
+    out = {};
+    const keys = Object.keys(value);
+    const n = Math.min(keys.length, JSON_MAX_ITEMS);
+    for (let i = 0; i < n; i++) out[keys[i]] = sanitizeForJson(value[keys[i]], d + 1, stack);
+    if (keys.length > n) out["…"] = "还有 " + (keys.length - n) + " 个键";
+  }
+  stack.pop();
+  return out;
 }
 
 /** 把任意值转成可读文本 */
@@ -162,17 +395,25 @@ function formatArg(v) {
   if (t === "bigint") return v.toString() + "n";
   if (t === "function") return "ƒ " + (v.name || "anonymous") + "()";
   if (v instanceof Error) {
-    return (v.name || "Error") + ": " + v.message + (v.stack ? "\n" + v.stack : "");
+    return (
+      (v.name || "Error") + ": " + v.message + (v.stack ? "\n" + v.stack : "")
+    );
   }
   if (typeof window !== "undefined" && v === window) return "[Window]";
   if (typeof document !== "undefined" && v === document) return "[Document]";
   if (v.nodeType === 1) {
-    const cls = typeof v.className === "string" && v.className ? "." + v.className.split(/\s+/)[0] : "";
+    const cls =
+      typeof v.className === "string" && v.className
+        ? "." + v.className.split(/\s+/)[0]
+        : "";
     return "<" + v.tagName.toLowerCase() + cls + ">";
   }
-  if (v.$options) return "[Vue " + (v.$options.name || "Anonymous") + "]"; // Vue 实例不要深挖
+  if (isVueInstance(v)) return formatVueInstance(v); // 实例：只给 $props / $data 摘要，不发散内部字段
+  // 实例数组（$findVm() / $getAllVm() / $vmFromEl 们的结果）：逐个给摘要。
+  // 不能整体 JSON.stringify —— 见 sanitizeForJson 的注释。
+  if (Array.isArray(v) && hasVueInstance(v)) return formatVmArray(v);
   try {
-    return truncate(JSON.stringify(v, circularReplacer(), 2));
+    return truncate(JSON.stringify(sanitizeForJson(v, 0, []), circularReplacer(), 2));
   } catch (e) {
     return String(v);
   }
@@ -189,7 +430,10 @@ function formatArgs(args) {
 
 const CSS = `
 .vc-root,
-.vc-root * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+.vc-root * { 
+  box-sizing: border-box; 
+  -webkit-tap-highlight-color: transparent; 
+}
 .vc-root {
   --vc-bg: #1b1d23;
   --vc-bg-2: #23262e;
@@ -247,7 +491,9 @@ const CSS = `
   line-height: 16px;
   text-align: center;
 }
-.vc-root.is-noball .vc-ball { display: none; }
+.vc-root.is-noball .vc-ball { 
+  display: none; 
+}
 
 /* ---------- 面板 ---------- */
 .vc-panel {
@@ -259,7 +505,7 @@ const CSS = `
   display: none;
   flex-direction: column;
   width: min(420px, calc(100vw - 24px));
-  height: min(520px, calc(100vh - 160px));
+  height: max(520px, calc(100vh - 160px));
   overflow: hidden;
   background: var(--vc-bg);
   color: var(--vc-fg);
@@ -398,7 +644,10 @@ const CSS = `
   background: var(--vc-bg-2);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
-.vc-cmd__pre { color: var(--vc-ok); font-weight: 700; }
+.vc-cmd__pre { 
+  color: var(--vc-ok); 
+  font-weight: 700; 
+ }
 .vc-cmd__input {
   flex: 1;
   min-width: 0;
@@ -409,16 +658,32 @@ const CSS = `
   font: inherit;
   outline: none;
 }
-.vc-cmd__input::placeholder { color: var(--vc-dim); }
+.vc-cmd__input::placeholder { 
+  color: var(--vc-dim); 
+}
 `;
 
 function injectStyle() {
-  if (typeof document === "undefined") return;
-  if (document.querySelector("style[" + VC_STYLE_TAG + "]")) return;
-  const el = document.createElement("style");
-  el.setAttribute(VC_STYLE_TAG, "");
-  el.textContent = CSS;
-  (document.head || document.documentElement).appendChild(el);
+  if (typeof document === "undefined") {
+    return false;
+  }
+  if (document.querySelector("style[" + VC_STYLE_TAG + "]")) {
+    return true;
+  }
+  // head 可能还没解析出来（脚本在 <head> 里同步跑），documentElement 也兜不到就直接放弃
+  const host = document.head || document.documentElement;
+  if (!host) {
+    return false;
+  }
+  try {
+    const el = document.createElement("style");
+    el.setAttribute(VC_STYLE_TAG, "");
+    el.textContent = CSS;
+    host.appendChild(el);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 function removeStyle() {
@@ -467,13 +732,21 @@ const TEMPLATE = `
 `;
 
 function buildDom() {
+  if (typeof document === "undefined" || !document.body) {
+    return null;
+  }
   const root = document.createElement("div");
   root.className = "vc-root";
   root.innerHTML = TEMPLATE;
-  document.body.appendChild(root);
+  try {
+    document.body.appendChild(root);
+  } catch (e) {
+    return null; // body 被冻结 / 已不可写（少见）→ 交给调用方降级
+  }
 
   const el = state.el;
   el.root = root;
+  // 这几个是 null 也无所谓，elOf() 会挡住
   el.ball = root.querySelector(".vc-ball");
   el.badge = root.querySelector(".vc-ball__badge");
   el.panel = root.querySelector(".vc-panel");
@@ -482,13 +755,18 @@ function buildDom() {
   el.sys = root.querySelector(".vc-sys");
   el.storage = root.querySelector(".vc-storage");
   el.cmdInput = root.querySelector(".vc-cmd__input");
-  el.navItems = Array.prototype.slice.call(root.querySelectorAll(".vc-nav__item"));
+  // 集合统一兜底成数组，后面到处 .forEach 就不用再判空
+  el.navItems = Array.prototype.slice.call(
+    root.querySelectorAll(".vc-nav__item")
+  );
   el.tabs = Array.prototype.slice.call(root.querySelectorAll(".vc-tab"));
 
   setPosition(state.options.position);
   applyTheme(state.options.theme);
 
-  if (!state.options.ball) root.classList.add("is-noball");
+  if (!state.options.ball) {
+    root.classList.add("is-noball");
+  }
   return root;
 }
 
@@ -497,63 +775,98 @@ function buildDom() {
  *   setPosition({ right: 12, bottom: 80 })   右下
  *   setPosition({ left: 12, bottom: 80 })    左下（给了 left 就自动清掉 right）
  *   setPosition({ right: 12, bottom: '40%' }) 支持任意 CSS 长度
+ * 面板还没建（未 init / 已 destroy）时只把配置存下来，下次 buildDom 自动生效。
  */
 function setPosition(pos) {
-  if (!pos) return;
+  if (!pos || typeof pos !== "object") {
+    return api;
+  }
   const next = Object.assign({}, state.options.position, pos);
   // 显式给了某一侧，就把另一侧清掉，避免 left / right 同时生效
   if (Object.prototype.hasOwnProperty.call(pos, "left")) next.right = undefined;
-  else if (Object.prototype.hasOwnProperty.call(pos, "right")) next.left = undefined;
+  else if (Object.prototype.hasOwnProperty.call(pos, "right"))
+    next.left = undefined;
   state.options.position = next;
 
-  const root = state.el.root;
-  if (!root) return;
+  const root = elOf("root");
+  if (!root) {
+    return api;
+  }
   const p = state.options.position;
   const len = (v) => (typeof v === "number" ? v + "px" : v);
   if (p.left != null) {
     root.style.setProperty("--vc-left", len(p.left));
     root.style.setProperty("--vc-right", "auto");
   } else {
-    root.style.setProperty("--vc-right", len(p.right != null ? p.right : DEFAULTS.position.right));
+    root.style.setProperty(
+      "--vc-right",
+      len(p.right != null ? p.right : DEFAULTS.position.right)
+    );
     root.style.setProperty("--vc-left", "auto");
   }
-  if (p.bottom != null) root.style.setProperty("--vc-bottom", len(p.bottom));
+  if (p.bottom != null) {
+    root.style.setProperty("--vc-bottom", len(p.bottom));
+  }
+  return api;
 }
 
 function applyTheme(theme) {
-  const root = state.el.root;
-  if (!root || !theme) return;
+  const root = elOf("root");
+  if (!root || !theme || typeof theme !== "object") {
+    return;
+  }
   Object.keys(theme).forEach((k) => {
     const varName = THEME_VARS[k];
-    if (varName && theme[k] != null) root.style.setProperty(varName, theme[k]);
+    if (!varName || theme[k] == null) {
+      return;
+    }
+    try {
+      root.style.setProperty(varName, theme[k]);
+    } catch (e) {
+      /* 非法 CSS 值忽略 */
+    }
   });
 }
 
 function bindEvents() {
   const el = state.el;
+  // 统一入口：节点拿不到就跳过，绝不抛
+  const on = (node, type, fn, opts) => {
+    if (node && typeof node.addEventListener === "function") {
+      node.addEventListener(type, fn, opts);
+    }
+  };
 
-  el.ball.addEventListener("click", toggle);
+  on(el.ball, "click", toggle);
 
-  el.navItems.forEach((btn) => {
-    btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+  listOf("navItems").forEach((btn) => {
+    on(btn, "click", () => switchTab(btn.getAttribute("data-tab")));
   });
 
-  el.panel.addEventListener("click", (e) => {
-    const act = e.target.getAttribute && e.target.getAttribute("data-act");
-    if (act === "clear") clearCurrent();
-    if (act === "close") hide();
+  on(el.panel, "click", (e) => {
+    const t = e.target;
+    const act = t && t.getAttribute && t.getAttribute("data-act");
+    if (act === "clear") {
+      clearCurrent();
+    }
+    if (act === "close") {
+      hide();
+    }
   });
 
-  el.cmdInput.addEventListener("keydown", onCmdKeydown);
+  on(el.cmdInput, "keydown", onCmdKeydown);
 
   // 阻止面板内的滚动穿到页面
-  el.panel.addEventListener("touchmove", (e) => {
+  on(el.panel, "touchmove", (e) => {
     if (e.target === el.panel) e.preventDefault();
   });
 
   // 兜底：原生 error / 未处理的 Promise 拒绝
+  if (typeof window === "undefined") return;
   state.bound.onError = (e) => {
-    addLog("error", [e.message + " @ " + (e.filename || "") + ":" + e.lineno + ":" + e.colno]);
+    addLog("error", [
+      e.message + " @ " + (e.filename || "") + ":" + e.lineno + ":" + e.colno,
+    ]);
   };
   state.bound.onRejection = (e) => {
     addLog("error", ["Unhandled Rejection:", e.reason]);
@@ -569,26 +882,48 @@ function bindEvents() {
  * ------------------------------------------------------------------ */
 
 function show() {
+  ensureReady(); // 没 init 就 show → 顺手初始化，而不是报 "Cannot read classList of undefined"
+  const root = elOf("root");
+  if (!root) {
+    return api;
+  } // 非浏览器 / body 还没出来 → 静默降级
   state.open = true;
-  state.el.root.classList.add("is-open");
+  root.classList.add("is-open");
   clearBadge();
-  if (state.tab === "log") scrollLogsToBottom();
+  if (state.tab === "log") {
+    scrollLogsToBottom();
+  }
+  return api;
 }
 
 function hide() {
+  const root = elOf("root");
   state.open = false;
-  state.el.root.classList.remove("is-open");
+  if (root) root.classList.remove("is-open");
+  return api;
 }
 
 function toggle() {
-  state.open ? hide() : show();
+  ensureReady();
+  if (!hasDom()) {
+    return api;
+  }
+  return state.open ? hide() : show();
 }
 
 function switchTab(tab) {
-  if (!tab) return;
+  if (!tab) {
+    return api;
+  }
   state.tab = tab;
-  state.el.navItems.forEach((b) => b.classList.toggle("is-on", b.getAttribute("data-tab") === tab));
-  state.el.tabs.forEach((t) => t.classList.toggle("is-on", t.getAttribute("data-tab") === tab));
+  listOf("navItems").forEach((b) => {
+    if (b && b.classList)
+      b.classList.toggle("is-on", b.getAttribute("data-tab") === tab);
+  });
+  listOf("tabs").forEach((t) => {
+    if (t && t.classList)
+      t.classList.toggle("is-on", t.getAttribute("data-tab") === tab);
+  });
   if (tab === "log") {
     clearBadge();
     scrollLogsToBottom();
@@ -597,21 +932,25 @@ function switchTab(tab) {
   } else if (tab === "storage") {
     renderStorage();
   }
+  return api;
 }
 
 function clearCurrent() {
   if (state.tab === "network") {
     state.networks.length = 0;
-    state.el.nets.innerHTML = "";
+    const nets = elOf("nets");
+    if (nets) nets.innerHTML = "";
   } else if (state.tab === "log") {
     clear();
   }
+  return api;
 }
 
 function onCmdKeydown(e) {
-  const input = state.el.cmdInput;
+  const input = elOf("cmdInput");
+  if (!input) return;
   if (e.key === "Enter") {
-    const code = input.value.trim();
+    const code = String(input.value || "").trim();
     if (!code) return;
     input.value = "";
     state.cmdHistory.push(code);
@@ -651,12 +990,14 @@ function evaluate(code) {
  * ------------------------------------------------------------------ */
 
 function scrollLogsToBottom() {
-  const el = state.el.logs;
-  if (!el) return;
-  el.parentNode.scrollTop = el.parentNode.scrollHeight;
+  const el = elOf("logs");
+  const box = el && el.parentNode; // 列表可能已脱离文档 → parentNode 为 null
+  if (!box) return;
+  box.scrollTop = box.scrollHeight;
 }
 
 function nearBottom(box) {
+  if (!box) return false;
   return box.scrollHeight - box.scrollTop - box.clientHeight < 24;
 }
 
@@ -676,7 +1017,7 @@ function renderLog(item) {
 }
 
 function updateBadge() {
-  const badge = state.el.badge;
+  const badge = elOf("badge");
   if (!badge) return;
   if (state.badge > 0) {
     badge.textContent = state.badge > 99 ? "99+" : String(state.badge);
@@ -694,37 +1035,53 @@ function clearBadge() {
 
 /**
  * 写一条日志
+ * 面板没建 / 已 destroy 也没关系：记录照样进 state.logs，init 时会补渲染。
  * @param {string} type log | info | warn | error | debug | input | output
- * @param {Array}  args 原始参数（会被 formatArg 展开）
+ * @param {Array}  args 原始参数（会被 formatArg 展开），传单个值也认
  */
 function addLog(type, args) {
+  const list = Array.isArray(args) ? args : args === undefined ? [] : [args];
+  let text;
+  try {
+    text = formatArgs(list);
+  } catch (e) {
+    text = "[无法格式化的内容]";
+  }
   const item = {
     id: ++state.seq,
-    type: type,
+    type: type || "log",
     time: Date.now(),
-    args: args,
-    text: formatArgs(args),
+    args: list,
+    text: text,
   };
   state.logs.push(item);
 
+  const logs = elOf("logs");
+
   // 超上限：丢最早的（数组 + DOM 同步丢，避免 DOM 越滚越大）
-  const over = state.logs.length - state.options.maxLogs;
+  const max =
+    Number(state.options.maxLogs) > 0
+      ? Number(state.options.maxLogs)
+      : DEFAULTS.maxLogs;
+  const over = state.logs.length - max;
   if (over > 0) {
     state.logs.splice(0, over);
-    for (let i = 0; i < over; i++) {
-      const first = state.el.logs && state.el.logs.firstChild;
-      if (first) state.el.logs.removeChild(first);
+    if (logs) {
+      for (let i = 0; i < over; i++) {
+        const first = logs.firstChild;
+        if (first) logs.removeChild(first);
+      }
     }
   }
 
-  if (state.el.logs) {
-    const box = state.el.logs.parentNode;
+  if (logs) {
+    const box = logs.parentNode;
     const stick = state.tab === "log" && state.open && nearBottom(box);
-    state.el.logs.appendChild(renderLog(item));
+    logs.appendChild(renderLog(item));
     if (stick) scrollLogsToBottom();
   }
 
-  if (type === "error" || type === "warn") {
+  if (item.type === "error" || item.type === "warn") {
     if (!(state.open && state.tab === "log")) {
       state.badge++;
       updateBadge();
@@ -736,8 +1093,10 @@ function addLog(type, args) {
 /** 清空日志 */
 function clear() {
   state.logs.length = 0;
-  if (state.el.logs) state.el.logs.innerHTML = "";
+  const logs = elOf("logs");
+  if (logs) logs.innerHTML = "";
   clearBadge();
+  return api;
 }
 
 /* ------------------------------------------------------------------ *
@@ -748,21 +1107,38 @@ function patchConsole() {
   if (!consoleRef) return;
   state.saved.console = {};
   CONSOLE_METHODS.forEach((name) => {
-    state.saved.console[name] = consoleRef[name];
+    const origin = consoleRef[name];
+    if (typeof origin !== "function") return; // 该环境没这个方法（老 IE 无 debug）→ 不补
+    state.saved.console[name] = origin;
     const patched = function () {
-      addLog(name, Array.prototype.slice.call(arguments));
+      try {
+        addLog(name, Array.prototype.slice.call(arguments));
+      } catch (e) {
+        /* 记录失败不能反过来把业务的 console 打断 */
+      }
       if (state.options.keepConsole) nativeLog[name].apply(null, arguments);
     };
     // 打标记：外部可探测「当前 console 是否已被本模块接管」
     patched.__vcPatched = true;
-    consoleRef[name] = patched;
+    try {
+      consoleRef[name] = patched;
+    } catch (e) {
+      // console 被冻结 / 只读（部分沙箱、安全加固环境）→ 回滚，不接管
+      delete state.saved.console[name];
+    }
   });
+  if (!Object.keys(state.saved.console).length) state.saved.console = null;
 }
 
 function restoreConsole() {
   if (!consoleRef || !state.saved.console) return;
   CONSOLE_METHODS.forEach((name) => {
-    consoleRef[name] = state.saved.console[name];
+    if (!state.saved.console[name]) return;
+    try {
+      consoleRef[name] = state.saved.console[name];
+    } catch (e) {
+      /* 同上：写不回去就算了，别在 destroy 里抛 */
+    }
   });
   state.saved.console = null;
 }
@@ -801,7 +1177,8 @@ function normalizeHeaders(h) {
   try {
     if (typeof h.forEach === "function") h.forEach((v, k) => (out[k] = v));
     else if (Array.isArray(h)) h.forEach((pair) => (out[pair[0]] = pair[1]));
-    else if (typeof h === "object") Object.keys(h).forEach((k) => (out[k] = h[k]));
+    else if (typeof h === "object")
+      Object.keys(h).forEach((k) => (out[k] = h[k]));
   } catch (e) {
     /* ignore */
   }
@@ -815,15 +1192,27 @@ function headersText(obj) {
 
 function finishNetwork(rec) {
   state.networks.push(rec);
-  const over = state.networks.length - state.options.maxNetworks;
+  const nets = elOf("nets");
+  const max =
+    Number(state.options.maxNetworks) > 0
+      ? Number(state.options.maxNetworks)
+      : DEFAULTS.maxNetworks;
+  const over = state.networks.length - max;
   if (over > 0) {
     state.networks.splice(0, over);
-    for (let i = 0; i < over; i++) {
-      const first = state.el.nets && state.el.nets.firstChild;
-      if (first) state.el.nets.removeChild(first);
+    if (nets) {
+      for (let i = 0; i < over; i++) {
+        const first = nets.firstChild;
+        if (first) nets.removeChild(first);
+      }
     }
   }
-  if (state.el.nets) state.el.nets.appendChild(renderNet(rec));
+  if (!nets) return; // 面板没建 → 只留数据
+  try {
+    nets.appendChild(renderNet(rec));
+  } catch (e) {
+    /* 渲染失败不影响主流程 */
+  }
 }
 
 function patchNetwork() {
@@ -831,75 +1220,129 @@ function patchNetwork() {
   if (!win) return;
 
   // ---- XHR ----
-  if (win.XMLHttpRequest) {
-    const proto = win.XMLHttpRequest.prototype;
+  const proto = win.XMLHttpRequest && win.XMLHttpRequest.prototype;
+  if (
+    proto &&
+    typeof proto.open === "function" &&
+    typeof proto.send === "function"
+  ) {
     const origOpen = proto.open;
     const origSend = proto.send;
     const origSetHeader = proto.setRequestHeader;
-    state.saved.xhr = { proto: proto, open: origOpen, send: origSend, setRequestHeader: origSetHeader };
+    state.saved.xhr = {
+      proto: proto,
+      open: origOpen,
+      send: origSend,
+      setRequestHeader: origSetHeader,
+    };
 
-    proto.open = function (method, url) {
-      this.__vc = {
-        kind: "xhr",
-        id: ++state.seq,
-        method: String(method || "GET").toUpperCase(),
-        url: String(url),
-        reqHeaders: {},
+    try {
+      proto.open = function (method, url) {
+        try {
+          this.__vc = {
+            kind: "xhr",
+            id: ++state.seq,
+            method: String(method || "GET").toUpperCase(),
+            url: String(url),
+            reqHeaders: {},
+          };
+        } catch (e) {
+          /* 实例被 freeze / 不可扩展 → 这条不记录，但请求照发 */
+        }
+        return origOpen.apply(this, arguments);
       };
-      return origOpen.apply(this, arguments);
-    };
-    proto.setRequestHeader = function (k, v) {
-      if (this.__vc) this.__vc.reqHeaders[k] = v;
-      return origSetHeader.apply(this, arguments);
-    };
-    proto.send = function (body) {
-      const rec = this.__vc;
-      if (rec) {
-        rec.reqBody = body;
-        rec.start = Date.now();
-        this.addEventListener("loadend", () => {
-          rec.duration = Date.now() - rec.start;
-          rec.status = this.status === 1223 ? 204 : this.status;
-          rec.statusText = this.statusText || "";
+      proto.setRequestHeader = function (k, v) {
+        try {
+          if (this.__vc) this.__vc.reqHeaders[k] = v;
+        } catch (e) {
+          /* ignore */
+        }
+        return typeof origSetHeader === "function"
+          ? origSetHeader.apply(this, arguments)
+          : undefined;
+      };
+      proto.send = function (body) {
+        const rec = this.__vc;
+        if (rec) {
+          rec.reqBody = body;
+          rec.start = Date.now();
           try {
-            rec.resHeaders = parseHeaderText(this.getAllResponseHeaders());
+            this.addEventListener("loadend", () => {
+              rec.duration = Date.now() - rec.start;
+              rec.status = this.status === 1223 ? 204 : this.status;
+              rec.statusText = this.statusText || "";
+              try {
+                rec.resHeaders = parseHeaderText(this.getAllResponseHeaders());
+              } catch (e) {
+                rec.resHeaders = {};
+              }
+              try {
+                rec.resBody = String(this.responseText);
+              } catch (e) {
+                rec.resBody = "(二进制响应，已跳过)";
+              }
+              if (!rec.status)
+                rec.error = rec.error || "请求失败（网络错误 / 已中断）";
+              finishNetwork(rec);
+            });
           } catch (e) {
-            rec.resHeaders = {};
+            /* 某些 XHR polyfill 不支持 addEventListener → 放弃记录 */
           }
-          try {
-            rec.resBody = String(this.responseText);
-          } catch (e) {
-            rec.resBody = "(二进制响应，已跳过)";
-          }
-          if (!rec.status) rec.error = rec.error || "请求失败（网络错误 / 已中断）";
-          finishNetwork(rec);
-        });
-      }
-      return origSend.apply(this, arguments);
-    };
+        }
+        return origSend.apply(this, arguments);
+      };
+    } catch (e) {
+      // 原型只读（安全加固环境）→ 整块还原，别让 init 挂掉
+      restoreNetwork();
+    }
   }
 
   // ---- fetch ----
   if (typeof win.fetch === "function") {
     const origFetch = win.fetch;
     state.saved.fetch = origFetch;
-    win.fetch = function (input, init) {
-      const rec = {
-        kind: "fetch",
-        id: ++state.seq,
-        method: String((init && init.method) || (input && input.method) || "GET").toUpperCase(),
-        url: typeof input === "string" ? input : (input && input.url) || String(input),
-        reqHeaders: normalizeHeaders((init && init.headers) || (input && input.headers)),
-        reqBody: init && init.body,
-        start: Date.now(),
-      };
-      return origFetch.apply(this, arguments).then(
+
+    const patchedFetch = function (input, init) {
+      let rec;
+      try {
+        rec = {
+          kind: "fetch",
+          id: ++state.seq,
+          method: String(
+            (init && init.method) || (input && input.method) || "GET"
+          ).toUpperCase(),
+          url:
+            typeof input === "string"
+              ? input
+              : (input && input.url) || String(input),
+          reqHeaders: normalizeHeaders(
+            (init && init.headers) || (input && input.headers)
+          ),
+          reqBody: init && init.body,
+          start: Date.now(),
+        };
+      } catch (e) {
+        // 连入参都读不出来（异常 Proxy 等）→ 原样转发，不记录
+        return origFetch.apply(this, arguments);
+      }
+
+      const result = origFetch.apply(this, arguments);
+      if (!result || typeof result.then !== "function") return result; // 被包装过的 fetch 没返回 Promise
+
+      return result.then(
         (res) => {
-          rec.duration = Date.now() - rec.start;
-          rec.status = res.status;
-          rec.statusText = res.statusText;
-          rec.resHeaders = headersToObj(res.headers);
-          rec.resClone = res.clone ? res : null;
+          try {
+            rec.duration = Date.now() - rec.start;
+            rec.status = res && res.status;
+            rec.statusText = res && res.statusText;
+            rec.resHeaders = headersToObj(res && res.headers);
+            // 必须 clone()，直接把 res 存下来会在展开详情时把原响应体读掉，
+            // 调用方的 res.text() 就会报 "body stream already read"
+            rec.resClone =
+              res && typeof res.clone === "function" ? res.clone() : null;
+          } catch (e) {
+            /* 响应被读过 / clone 失败 → 详情里显示"(无)" */
+          }
           finishNetwork(rec);
           return res;
         },
@@ -912,19 +1355,35 @@ function patchNetwork() {
         }
       );
     };
+
+    try {
+      win.fetch = patchedFetch;
+    } catch (e) {
+      state.saved.fetch = null; // 写不进去 → 不接管
+    }
   }
 }
 
 function restoreNetwork() {
   const saved = state.saved;
   if (saved.xhr && saved.xhr.proto) {
-    saved.xhr.proto.open = saved.xhr.open;
-    saved.xhr.proto.send = saved.xhr.send;
-    saved.xhr.proto.setRequestHeader = saved.xhr.setRequestHeader;
+    const proto = saved.xhr.proto;
+    ["open", "send", "setRequestHeader"].forEach((k) => {
+      if (typeof saved.xhr[k] !== "function") return;
+      try {
+        proto[k] = saved.xhr[k];
+      } catch (e) {
+        /* ignore */
+      }
+    });
     saved.xhr = null;
   }
   if (saved.fetch && typeof window !== "undefined") {
-    window.fetch = saved.fetch;
+    try {
+      window.fetch = saved.fetch;
+    } catch (e) {
+      /* ignore */
+    }
     saved.fetch = null;
   }
 }
@@ -960,10 +1419,17 @@ function renderNetDetail(rec) {
 
   addKV("URL", rec.url);
   addKV("Method", rec.method);
-  addKV("Status", rec.status ? rec.status + " " + (rec.statusText || "") : rec.error || "-");
+  addKV(
+    "Status",
+    rec.status ? rec.status + " " + (rec.statusText || "") : rec.error || "-"
+  );
   addKV("耗时", (rec.duration != null ? rec.duration : "-") + " ms");
   addBlock("Request Headers", headersText(rec.reqHeaders));
-  if (rec.reqBody) addBlock("Request Body", typeof rec.reqBody === "string" ? rec.reqBody : formatArg(rec.reqBody));
+  if (rec.reqBody)
+    addBlock(
+      "Request Body",
+      typeof rec.reqBody === "string" ? rec.reqBody : formatArg(rec.reqBody)
+    );
   addBlock("Response Headers", headersText(rec.resHeaders));
 
   // fetch 的响应体是异步读的，展开时才去 clone 里取
@@ -994,7 +1460,8 @@ function renderNetDetail(rec) {
 
 function renderNet(rec) {
   const li = document.createElement("li");
-  li.className = "vc-net" + (rec.status >= 400 || rec.error ? " vc-net--err" : "");
+  li.className =
+    "vc-net" + (rec.status >= 400 || rec.error ? " vc-net--err" : "");
 
   const row = document.createElement("div");
   row.className = "vc-net__row";
@@ -1007,7 +1474,9 @@ function renderNet(rec) {
   const meta = document.createElement("span");
   meta.className = "vc-net__meta";
   meta.textContent =
-    (rec.status || "ERR") + " · " + (rec.duration != null ? rec.duration + "ms" : "-");
+    (rec.status || "ERR") +
+    " · " +
+    (rec.duration != null ? rec.duration + "ms" : "-");
   row.appendChild(method);
   row.appendChild(url);
   row.appendChild(meta);
@@ -1028,24 +1497,59 @@ function renderNet(rec) {
  * System
  * ------------------------------------------------------------------ */
 
+/** 取时区名；Intl 缺失或异常都给 "-" */
+function tzName() {
+  try {
+    return typeof Intl !== "undefined" && Intl.DateTimeFormat
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "-";
+  } catch (e) {
+    return "-";
+  }
+}
+
 function renderSystem() {
-  const box = state.el.sys;
+  const box = elOf("sys");
   if (!box) return;
-  const nav = navigator;
-  const conn = nav.connection || nav.mozConnection || nav.webkitConnection || {};
-  const mem = (performance && performance.memory) || {};
+  // 这些全局在非浏览器 / 受限环境里可能整体缺失，逐个 typeof 兜
+  const nav = typeof navigator !== "undefined" && navigator ? navigator : {};
+  const win = typeof window !== "undefined" ? window : null;
+  const scr = typeof screen !== "undefined" && screen ? screen : null;
+  const perf = typeof performance !== "undefined" ? performance : null;
+  const conn =
+    nav.connection || nav.mozConnection || nav.webkitConnection || {};
+  const mem = (perf && perf.memory) || {};
+  const dpr = win && win.devicePixelRatio ? win.devicePixelRatio : 1;
   const rows = [
-    ["UA", nav.userAgent],
+    ["UA", nav.userAgent || "-"],
     ["平台", nav.platform || "-"],
-    ["语言", (nav.language || "-") + " · " + (nav.languages || []).join(", ")],
-    ["屏幕", screen.width + "×" + screen.height + " @" + window.devicePixelRatio + "x"],
-    ["视口", window.innerWidth + "×" + window.innerHeight],
+    [
+      "语言",
+      (nav.language || "-") +
+        " · " +
+        (Array.isArray(nav.languages) ? nav.languages.join(", ") : "-"),
+    ],
+    ["屏幕", scr ? scr.width + "×" + scr.height + " @" + dpr + "x" : "-"],
+    ["视口", win ? win.innerWidth + "×" + win.innerHeight : "-"],
     ["在线", nav.onLine === false ? "离线" : "在线"],
-    ["网络", conn.effectiveType ? conn.effectiveType + " / " + (conn.downlink || "-") + "Mbps" : "-"],
-    ["时区", Intl && Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone : "-"],
+    [
+      "网络",
+      conn.effectiveType
+        ? conn.effectiveType + " / " + (conn.downlink || "-") + "Mbps"
+        : "-",
+    ],
+    ["时区", tzName()],
     ["Cookie", nav.cookieEnabled ? "启用" : "禁用"],
-    ["JS 堆", mem.usedJSHeapSize ? (mem.usedJSHeapSize / 1048576).toFixed(1) + " / " + (mem.jsHeapSizeLimit / 1048576).toFixed(0) + " MB" : "-"],
-    ["地址", location.href],
+    [
+      "JS 堆",
+      mem.usedJSHeapSize
+        ? (mem.usedJSHeapSize / 1048576).toFixed(1) +
+          " / " +
+          (mem.jsHeapSizeLimit / 1048576).toFixed(0) +
+          " MB"
+        : "-",
+    ],
+    ["地址", typeof location !== "undefined" ? location.href : "-"],
     ["时间", new Date().toString()],
   ];
   box.innerHTML = "";
@@ -1078,16 +1582,29 @@ function renderSystem() {
 
 function safeStorage(name) {
   try {
+    if (typeof window === "undefined") return null;
     const s = window[name];
-    s.getItem("__vc_probe__");
+    if (!s) return null;
+    s.getItem("__vc_probe__"); // 隐私模式 / 被禁用时会抛
     return s;
   } catch (e) {
     return null;
   }
 }
 
+/** 读 cookie：沙箱 iframe 里访问 document.cookie 会抛 SecurityError */
+function readCookie() {
+  try {
+    return typeof document !== "undefined" && document.cookie
+      ? String(document.cookie)
+      : "";
+  } catch (e) {
+    return "";
+  }
+}
+
 function renderStorage() {
-  const box = state.el.storage;
+  const box = elOf("storage");
   if (!box) return;
   box.innerHTML = "";
 
@@ -1099,15 +1616,35 @@ function renderStorage() {
   groups.forEach((g) => {
     const cap = document.createElement("div");
     cap.className = "vc-sec";
-    cap.textContent = g.name + (g.store ? "（" + g.store.length + " 项）" : "（不可用）");
+    // 连 length 都可能抛（存储被中途禁用）→ 整组按「不可用」处理
+    let count = -1;
+    try {
+      count = g.store ? g.store.length : -1;
+    } catch (e) {
+      count = -1;
+    }
+    cap.textContent =
+      g.name + (count >= 0 ? "（" + count + " 项）" : "（不可用）");
     box.appendChild(cap);
 
-    if (g.store && g.store.length) {
-      for (let i = 0; i < g.store.length; i++) {
-        const key = g.store.key(i);
-        box.appendChild(storageRow(key, g.store.getItem(key), () => g.store.removeItem(key)));
+    if (count > 0) {
+      for (let i = 0; i < count; i++) {
+        let key = null;
+        let val = null;
+        try {
+          key = g.store.key(i);
+          val = key == null ? null : g.store.getItem(key);
+        } catch (e) {
+          val = "（读取失败）";
+        }
+        if (key == null) continue;
+        box.appendChild(
+          storageRow(key, val, () => {
+            g.store.removeItem(key);
+          })
+        );
       }
-    } else if (g.store) {
+    } else if (count === 0) {
       const empty = document.createElement("p");
       empty.className = "vc-empty";
       empty.style.display = "block";
@@ -1119,9 +1656,7 @@ function renderStorage() {
   // cookie
   const cap = document.createElement("div");
   cap.className = "vc-sec";
-  const cookies = String(document.cookie || "")
-    .split("; ")
-    .filter(Boolean);
+  const cookies = readCookie().split("; ").filter(Boolean);
   cap.textContent = "cookie（" + cookies.length + " 项）";
   box.appendChild(cap);
   cookies.forEach((pair) => {
@@ -1129,8 +1664,12 @@ function renderStorage() {
     const k = i > 0 ? pair.slice(0, i) : pair;
     const v = i > 0 ? pair.slice(i + 1) : "";
     box.appendChild(
-      storageRow(k, decodeURIComponent(v), () => {
-        document.cookie = k + "=; path=/; max-age=0";
+      storageRow(k, safeDecode(v), () => {
+        try {
+          document.cookie = k + "=; path=/; max-age=0";
+        } catch (e) {
+          /* ignore */
+        }
       })
     );
   });
@@ -1151,7 +1690,11 @@ function storageRow(key, value, onDelete) {
   del.textContent = "删除";
   del.addEventListener("click", (e) => {
     e.stopPropagation();
-    onDelete();
+    try {
+      onDelete();
+    } catch (err) {
+      addLog("error", ["删除失败：", err]);
+    }
     renderStorage();
   });
   row.appendChild(k);
@@ -1166,64 +1709,136 @@ function storageRow(key, value, onDelete) {
 
 /**
  * 初始化（幂等）
+ * 容错：
+ *   · 非浏览器环境（SSR / Node / 单测）→ 直接返回 API，不抛
+ *   · document.body 还没解析出来（脚本写在 <head> 里同步执行）
+ *     → 挂一次 DOMContentLoaded，等 DOM 就绪再自动补建，不丢调用
+ *   · 中途任何一步出错 → 回滚 inited 标记并打日志，绝不让 import 方崩掉
  * @param {object} [options] 见 DEFAULTS + { theme }
  * @returns {object} API
  */
 function init(options) {
-  if (state.inited) return api;
-  if (typeof document === "undefined" || !document.body) return api;
-
-  state.options = Object.assign({}, DEFAULTS, options || {});
-  if (options && options.position) {
-    state.options.position = Object.assign({}, DEFAULTS.position, options.position);
+  if (typeof document === "undefined") {
+    return api;
+  }
+  if (state.inited || state.building) {
+    return api;
   }
 
-  injectStyle();
-  buildDom();
-  bindEvents();
-  switchTab(state.options.defaultTab || "log");
-  updateBadge();
+  // body 还没有 → 等 DOMContentLoaded（只挂一次）
+  if (!document.body) {
+    if (document.readyState === "loading" && !state.pendingInit) {
+      state.pendingInit = true;
+      const onReady = () => {
+        document.removeEventListener("DOMContentLoaded", onReady);
+        state.pendingInit = false;
+        init(options);
+      };
+      document.addEventListener("DOMContentLoaded", onReady);
+    }
+    return api;
+  }
 
-  if (state.options.captureConsole) patchConsole();
-  if (state.options.captureNetwork) patchNetwork();
+  state.building = true;
+  try {
+    state.options = Object.assign({}, DEFAULTS, options || {});
 
-  // init 之前就调用过 VConsole.log 的内容，补渲染一次
-  state.logs.forEach((item) => state.el.logs.appendChild(renderLog(item)));
+    if (options && options.position && typeof options.position === "object") {
+      state.options.position = Object.assign(
+        {},
+        DEFAULTS.position,
+        options.position
+      );
+    }
 
-  state.inited = true;
+    injectStyle(); // 失败也不致命：面板只是没样式
+
+    if (!buildDom()) {
+      state.building = false;
+      return api; // body 不可写 → 退化成一个「只记录不显示」的面板
+    }
+    bindEvents();
+    switchTab(state.options.defaultTab || "log");
+    updateBadge();
+
+    if (state.options.captureConsole) {
+      patchConsole();
+    }
+    if (state.options.captureNetwork) {
+      patchNetwork();
+    }
+
+    // init 之前就调用过 VConsole.log 的内容，补渲染一次
+    const logs = elOf("logs");
+    if (logs) {
+      state.logs.forEach((item) => {
+        try {
+          logs.appendChild(renderLog(item));
+        } catch (e) {
+          /* 单条渲染失败不该影响其它 */
+        }
+      });
+      scrollLogsToBottom();
+    }
+
+    state.inited = true;
+  } catch (err) {
+    state.building = false;
+    state.inited = false;
+    try {
+      nativeLog.error("[vconsole] 初始化失败：", err);
+    } catch (e) {
+      /* ignore */
+    }
+    return api;
+  }
+  state.building = false;
   return api;
 }
 
-/** 销毁：还原 console / XHR / fetch，移除面板 DOM 与样式 */
+/** 销毁：还原 console / XHR / fetch，移除面板 DOM 与样式（未 init 时直接返回） */
 function destroy() {
-  if (!state.inited) return;
+  if (!state.inited) return api;
   restoreConsole();
   restoreNetwork();
   if (state.options.captureError && typeof window !== "undefined") {
-    window.removeEventListener("error", state.bound.onError, true);
-    window.removeEventListener("unhandledrejection", state.bound.onRejection);
+    if (state.bound.onError)
+      window.removeEventListener("error", state.bound.onError, true);
+    if (state.bound.onRejection)
+      window.removeEventListener("unhandledrejection", state.bound.onRejection);
   }
-  if (state.el.root && state.el.root.parentNode) {
-    state.el.root.parentNode.removeChild(state.el.root);
-  }
+  const root = elOf("root");
+  if (root && root.parentNode) root.parentNode.removeChild(root);
   removeStyle();
   state.logs.length = 0;
   state.networks.length = 0;
   state.badge = 0;
   state.open = false;
   state.inited = false;
+  state.building = false;
+  state.saved = {};
+  state.bound = {};
   state.el = {};
+  return api;
 }
 
-/** 显隐悬浮球 */
+/** 显隐悬浮球（未 init 时只记配置，下次 init 生效） */
 function setBallVisible(visible) {
   state.options.ball = visible !== false;
-  if (state.el.root) state.el.root.classList.toggle("is-noball", !state.options.ball);
+  const root = elOf("root");
+  if (root) root.classList.toggle("is-noball", !state.options.ball);
+  return api;
+}
+
+/** 面板是否已建起来（含位置 / 主题等运行时信息，调试用） */
+function isInited() {
+  return state.inited && hasDom();
 }
 
 /** 暴露给 `this.$vconsole` 的 API 集合 */
 const api = {
   init: init,
+  isInited: isInited,
   show: show,
   hide: hide,
   toggle: toggle,
@@ -1276,5 +1891,17 @@ const plugin = api;
 // 项目约定：入口在模块作用域直接注册，不依赖 window.Vue（webpack 下 window 上没有 Vue）
 install(Vue);
 
-export { init, show, hide, toggle, clear, destroy, setBallVisible, setPosition, switchTab, addLog };
+export {
+  init,
+  isInited,
+  show,
+  hide,
+  toggle,
+  clear,
+  destroy,
+  setBallVisible,
+  setPosition,
+  switchTab,
+  addLog,
+};
 export default plugin;
