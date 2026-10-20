@@ -18,6 +18,7 @@ export const routes = [
   { path: '/app-dialog-demo', name: 'AppDialogDemo', component: () => import('@/components/AppDialog/AppDialogDemoPage.vue') },
   { path: '/param-props', name: 'ParamPropsDemo', component: () => import('@/views/ParamPassDemo/PropsModePage.vue') },
   { path: '/param-provide', name: 'ParamProvideDemo', component: () => import('@/views/ParamPassDemo/ProvideModePage.vue') },
+  { path: '/query-demo', name: 'QueryDemo', component: () => import('@/views/QueryDemo/QueryDemoPage.vue') },
   { path: '/vxe-table', name: 'VxeTableDemo', component: () => import('@/components/VxeTable/VxeTableDemoPage.vue') },
   { path: '/grid-box', name: 'GridBoxDemo', component: () => import('@/components/GridBox/GridBoxDemoPage.vue') },
   { path: '/emotion', name: 'EmotionDemo', component: () => import('@/views/EmotionDemo/index.vue') },
