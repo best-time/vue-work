@@ -16,6 +16,7 @@ export const routes = [
   { path: '/fun1', name: 'Fun-demo1', component: () => import('@/views/func/demo1.vue') },
   { path: '/fun-h-dialog', name: 'FunHDialog', component: () => import('@/components/FunComponent/h-dialog/HDialogDemoPage.vue') },
   { path: '/app-dialog-demo', name: 'AppDialogDemo', component: () => import('@/components/AppDialog/AppDialogDemoPage.vue') },
+  { path: '/remote-input-demo', name: 'RemoteInputDemo', component: () => import('@/components/RemoteInput/RemoteInputDemoPage.vue') },
   { path: '/param-props', name: 'ParamPropsDemo', component: () => import('@/views/ParamPassDemo/PropsModePage.vue') },
   { path: '/param-provide', name: 'ParamProvideDemo', component: () => import('@/views/ParamPassDemo/ProvideModePage.vue') },
   { path: '/query-demo', name: 'QueryDemo', component: () => import('@/views/QueryDemo/QueryDemoPage.vue') },
