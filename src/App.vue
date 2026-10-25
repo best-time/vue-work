@@ -25,19 +25,19 @@ export default {
    * webpack 的常量折叠会把整个 if 分支（含 require）丢掉，vConsole 不会进主包。
    */
   created() {
-    if (process.env.NODE_ENV !== 'production') {
-      const vconsole = require('@/utils/vconsole');
-      // harmony 模块被 require 时拿到的是命名空间对象，默认导出在 .default 上
-      (vconsole.default || vconsole).init();
-    }
+    // if (process.env.NODE_ENV !== 'production') {
+    //   const vconsole = require('@/utils/vconsole');
+    //   // harmony 模块被 require 时拿到的是命名空间对象，默认导出在 .default 上
+    //   (vconsole.default || vconsole).init();
+    // }
   },
 
   beforeDestroy() {
     // 根组件销毁（整个应用卸载）时把 console / XHR / fetch 和样式还原干净
-    if (process.env.NODE_ENV !== 'production') {
-      const vconsole = require('@/utils/vconsole');
-      (vconsole.default || vconsole).destroy();
-    }
+    // if (process.env.NODE_ENV !== 'production') {
+    //   const vconsole = require('@/utils/vconsole');
+    //   (vconsole.default || vconsole).destroy();
+    // }
   },
 }
 </script>

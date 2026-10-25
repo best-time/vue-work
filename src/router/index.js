@@ -19,6 +19,8 @@ export const routes = [
   { path: '/param-props', name: 'ParamPropsDemo', component: () => import('@/views/ParamPassDemo/PropsModePage.vue') },
   { path: '/param-provide', name: 'ParamProvideDemo', component: () => import('@/views/ParamPassDemo/ProvideModePage.vue') },
   { path: '/query-demo', name: 'QueryDemo', component: () => import('@/views/QueryDemo/QueryDemoPage.vue') },
+  { path: '/dialog-org-demo', name: 'DialogOrgDemo', component: () => import('@/views/DialogOrgDemo/index.vue') },
+  { path: '/require-comp-demo', name: 'RequireCompDemo', component: () => import('@/views/RequireCompDemo/index.vue') },
   { path: '/vxe-table', name: 'VxeTableDemo', component: () => import('@/components/VxeTable/VxeTableDemoPage.vue') },
   { path: '/grid-box', name: 'GridBoxDemo', component: () => import('@/components/GridBox/GridBoxDemoPage.vue') },
   { path: '/emotion', name: 'EmotionDemo', component: () => import('@/views/EmotionDemo/index.vue') },
@@ -27,6 +29,7 @@ export const routes = [
   { path: '/nest-demo', name: 'NestDemo', component: () => import('@/views/NestDemo/index.vue') },
   { path: '/skeleton-demo', name: 'SkeletonDemo', component: () => import('@/views/SkeletonDemo/index.vue') },
   { path: '/vconsole-demo', name: 'VConsoleDemo', component: () => import('@/views/VConsoleDemo/index.vue') },
+  { path: '/dialog-ex', name: 'DialogEx', component: () => import('@/views/dialogExp/index.vue') },
 ]
 
 export default new VueRouter({
