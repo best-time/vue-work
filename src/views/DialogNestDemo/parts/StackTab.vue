@@ -245,6 +245,8 @@ export default {
     },
 
     async openDetail(row) {
+      console.log(111, 'r')
+
       const res = await openLayer({
         title: "订单详情 · " + row.orderNo,
         width: "760px",
@@ -317,7 +319,9 @@ export default {
     log(kind, text) {
       const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
       this.logs.unshift({ t, kind, text });
-      if (this.logs.length > 30) this.logs.pop();
+      if (this.logs.length > 30) {
+        this.logs.pop();
+      }
     },
   },
 };

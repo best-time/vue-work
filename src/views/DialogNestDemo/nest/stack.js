@@ -56,7 +56,9 @@ export function openLayer(options = {}) {
   state.layers.push(layer);
   // 先让 el-dialog 以 visible=false 挂上，下一帧再打开，才能走一遍进场过渡
   Vue.nextTick(() => {
-    if (!layer.closing) layer.visible = true;
+    if (!layer.closing) {
+      layer.visible = true;
+    }
   });
 
   promise.layer = layer;
@@ -66,15 +68,23 @@ export function openLayer(options = {}) {
 /** 无动画直接摘掉（级联关闭、页面卸载时用） */
 function dropLayer(layer, payload) {
   const i = state.layers.indexOf(layer);
-  if (i < 0) return;
+  if (i < 0) {
+    return;
+  }
   state.layers.splice(i, 1);
-  if (layer.resolve) layer.resolve(payload);
+  if (layer.resolve) {
+    layer.resolve(payload);
+  }
 }
 
 export function closeLayer(layer, payload) {
-  if (!layer) return;
+  if (!layer) {
+    return;
+  }
   const idx = state.layers.indexOf(layer);
-  if (idx < 0) return;
+  if (idx < 0) {
+    return;
+  }
 
   // 关中间层时，上面的层必须一起作废 —— 否则会出现「父弹窗没了，子弹窗还浮着」
   state.layers
@@ -82,7 +92,9 @@ export function closeLayer(layer, payload) {
     .reverse()
     .forEach((l) => dropLayer(l, undefined));
 
-  if (layer.closing) return;
+  if (layer.closing) {
+    return;
+  }
   layer.payload = payload;
   layer.closing = true;
   layer.visible = false;
@@ -91,14 +103,20 @@ export function closeLayer(layer, payload) {
 /** el-dialog 的 @closed（离场动画结束）才真正出栈并兑现 Promise */
 export function finishLayer(layer) {
   const i = state.layers.indexOf(layer);
-  if (i < 0) return;
+  if (i < 0) {
+    return;
+  }
   state.layers.splice(i, 1);
-  if (layer.resolve) layer.resolve(layer.payload);
+  if (layer.resolve) {
+    layer.resolve(layer.payload);
+  }
 }
 
 export function closeTop() {
   const top = state.layers[state.layers.length - 1];
-  if (!top || top.closing) return null;
+  if (!top || top.closing) {
+    return null;
+  }
   state.escCount += 1;
   closeLayer(top);
   return top;
