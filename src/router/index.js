@@ -21,6 +21,7 @@ export const routes = [
   { path: '/param-provide', name: 'ParamProvideDemo', component: () => import('@/views/ParamPassDemo/ProvideModePage.vue') },
   { path: '/query-demo', name: 'QueryDemo', component: () => import('@/views/QueryDemo/QueryDemoPage.vue') },
   { path: '/dialog-org-demo', name: 'DialogOrgDemo', component: () => import('@/views/DialogOrgDemo/index.vue') },
+  { path: '/dialog-nest-demo', name: 'DialogNestDemo', component: () => import('@/views/DialogNestDemo/index.vue') },
   { path: '/require-comp-demo', name: 'RequireCompDemo', component: () => import('@/views/RequireCompDemo/index.vue') },
   { path: '/vxe-table', name: 'VxeTableDemo', component: () => import('@/components/VxeTable/VxeTableDemoPage.vue') },
   { path: '/grid-box', name: 'GridBoxDemo', component: () => import('@/components/GridBox/GridBoxDemoPage.vue') },
