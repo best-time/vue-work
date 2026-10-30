@@ -14,7 +14,10 @@ import DialogHost from "./DialogHost.vue";
  * 不做 reject，业务侧统一 `const res = await openLayer(...); if (!res) return`，
  * 避免「用户点取消」被迫写 try/catch。
  */
-export const state = Vue.observable({ layers: [], escCount: 0 });
+export const state = Vue.observable({
+  layers: [],
+  escCount: 0,
+});
 
 let seed = 0;
 let host = null;
@@ -87,10 +90,10 @@ export function closeLayer(layer, payload) {
   }
 
   // 关中间层时，上面的层必须一起作废 —— 否则会出现「父弹窗没了，子弹窗还浮着」
-  state.layers
-    .slice(idx + 1)
-    .reverse()
-    .forEach((l) => dropLayer(l, undefined));
+  const ll = state.layers
+      .slice(idx + 1)
+      .reverse();
+    ll.forEach((l) => dropLayer(l, undefined));
 
   if (layer.closing) {
     return;
@@ -118,7 +121,7 @@ export function closeTop() {
     return null;
   }
   state.escCount += 1;
-  closeLayer(top);
+  closeLayer(top, undefined);
   return top;
 }
 
