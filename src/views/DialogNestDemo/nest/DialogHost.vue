@@ -74,7 +74,9 @@ export default {
 
     /** X 按钮 / ESC / 代码里改 visible 都会走到这里，统一按「取消」处理 */
     onDialogClose(layer) {
-      if (layer.closing) return;
+      if (layer.closing) {
+        return;
+      }
       closeLayer(layer, undefined);
     },
 

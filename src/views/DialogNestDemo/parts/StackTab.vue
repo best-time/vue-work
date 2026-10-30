@@ -213,7 +213,9 @@ export default {
   beforeDestroy() {
     clearInterval(this.timer);
     // 页面离开时把栈清掉，别把弹窗留给下一个页面
-    closeAll();
+    // 注意：这里要用 import 进来的别名（clearStack），原来的 closeAll 是组件方法，
+    // 在 beforeDestroy 里直接调用会 ReferenceError（eslint no-undef 报过）
+    clearStack();
     state.escCount = 0;
   },
 
@@ -245,8 +247,6 @@ export default {
     },
 
     async openDetail(row) {
-      console.log(111, 'r')
-
       const res = await openLayer({
         title: "订单详情 · " + row.orderNo,
         width: "760px",
