@@ -8,6 +8,14 @@
         </h2>
         <el-button
           size="small"
+          plain
+          icon="el-icon-s-operation"
+          @click="$router.push('/provide-inject-demo')"
+        >
+          看机制细节（响应式 / 覆盖 / 取不到）
+        </el-button>
+        <el-button
+          size="small"
           type="success"
           plain
           icon="el-icon-back"

@@ -3,6 +3,7 @@ import Vue from 'vue'
 // import VueCompositionAPI from 'vue-demi'
 import App from './App.vue'
 import router from './router'
+import store from './store' // Vuex（src/store/index.js）：必须在 new Vue({ store }) 之前导入，它内部已 Vue.use(Vuex)
 import ElementUI from 'element-ui';
 import 'element-ui/lib/theme-chalk/index.css';
 import './styles/reset.css'
@@ -37,8 +38,15 @@ if (process.env.NODE_ENV === 'development') {
   require('@/utils/vconsole/debug')
 }
 
+// 应用级状态初始化：按窗口宽度定 state.app.device，并挂一次 resize 监听（返回卸载函数，随应用共存即可）
+store.dispatch('app/initDevice')
+
 new Vue({
   router,
+  // 注入后：根实例及其所有子组件都能 this.$store；
+  // 但「自己 new 出来的独立根实例」（如弹窗宿主 DialogHost）不在组件树上，取不到 $store，
+  // 那里要 `import store from '@/store'`。详见 src/store/index.js 顶部的注释。
+  store,
   render: h => h(App),
 }).$mount('#app');
 

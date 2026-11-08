@@ -19,6 +19,7 @@ export const routes = [
   { path: '/remote-input-demo', name: 'RemoteInputDemo', component: () => import('@/components/RemoteInput/RemoteInputDemoPage.vue') },
   { path: '/param-props', name: 'ParamPropsDemo', component: () => import('@/views/ParamPassDemo/PropsModePage.vue') },
   { path: '/param-provide', name: 'ParamProvideDemo', component: () => import('@/views/ParamPassDemo/ProvideModePage.vue') },
+  { path: '/provide-inject-demo', name: 'ProvideInjectDemo', component: () => import('@/views/ProvideInjectDemo/index.vue') },
   { path: '/query-demo', name: 'QueryDemo', component: () => import('@/views/QueryDemo/QueryDemoPage.vue') },
   { path: '/dialog-org-demo', name: 'DialogOrgDemo', component: () => import('@/views/DialogOrgDemo/index.vue') },
   { path: '/dialog-nest-demo', name: 'DialogNestDemo', component: () => import('@/views/DialogNestDemo/index.vue') },

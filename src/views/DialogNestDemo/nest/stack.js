@@ -1,5 +1,6 @@
 import Vue from "vue";
 import DialogHost from "./DialogHost.vue";
+import store from "@/store";
 
 /**
  * 弹窗栈：用「一层一个组件 + 一个 Promise」替代 n 个 visible 布尔值。
@@ -23,7 +24,23 @@ function ensureHost() {
   if (host && !host._isDestroyed) {
     return host;
   }
-  host = new (Vue.extend(DialogHost))();
+  /**
+   * ⚠️ 这里必须显式把 store 塞进根实例的 options，否则弹窗里的组件 `this.$store` 是 undefined。
+   *
+   * 原因：Vuex 安装时挂的是 `beforeCreate` mixin，逻辑等价于
+   *     this.$store = options.store || (options.parent && options.parent.$store)
+   * 也就是说 $store 只沿着**组件树的 $parent 链**继承。
+   * 而 `new (Vue.extend(DialogHost))()` 是一个**独立根实例**：$parent 为空，
+   * options 里也没有 store —— 链在这里就断了。
+   * （`append-to-body` 只搬 DOM，不会把组件挂回页面那棵树，别指望它。）
+   *
+   * 症状：弹窗里的组件一用 `mapState` / `this.$store.dispatch` 就报
+   *   `TypeError: Cannot read properties of undefined (reading 'state')`
+   *   `[vuex] unknown action type`
+   *
+   * 所以宿主实例本身就带上 store，往下的 el-dialog → 业务组件 → 子组件全都能继承到。
+   */
+  host = new (Vue.extend(DialogHost))({ store });
   host.$mount();
   document.body.appendChild(host.$el);
   return host;
