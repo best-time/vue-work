@@ -42,7 +42,9 @@ export default {
   name: "DialogHost",
 
   data() {
-    return { layers: state.layers };
+    return {
+      layers: state.layers
+    };
   },
 
   mounted() {
@@ -50,9 +52,17 @@ export default {
     // 所以 ESC 由宿主统一处理：只关最上面那一层。
     this.onKeydown = (e) => {
       const isEsc = e.key === "Escape" || e.keyCode === 27;
-      if (!isEsc) return;
-      if (hasOpenFloat()) return; // 有展开的下拉/日期面板，先让它们自己处理
-      if (!state.layers.length) return;
+      if (!isEsc) {
+        return;
+      }
+      // 有展开的下拉/日期面板，先让它们自己处理
+      if (hasOpenFloat()) {
+        return;
+      }
+
+      if (!state.layers.length) {
+        return;
+      }
       e.stopPropagation();
       closeTop();
     };
@@ -74,7 +84,9 @@ export default {
 
     /** X 按钮 / ESC / 代码里改 visible 都会走到这里，统一按「取消」处理 */
     onDialogClose(layer) {
-      if (layer.closing) return;
+      if (layer.closing) {
+        return;
+      }
       closeLayer(layer, undefined);
     },
 

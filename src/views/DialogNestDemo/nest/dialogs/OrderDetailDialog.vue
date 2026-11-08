@@ -146,17 +146,21 @@ export default {
     },
 
     /** 第 2 层（另一条分支）：换客户 */
-    async changeCustomer() {
-      const picked = await openLayer({
+     changeCustomer() {
+       openLayer({
         title: "选择收货客户",
         width: "700px",
         role: "PickCustomerDialog",
         component: PickCustomerDialog,
         props: { customerId: this.customer.id },
-      });
-      if (!picked) return;
-      this.customer = picked;
-      this.dirty = true;
+      }).then((picked) => {
+        console.log(picked);
+        if (!picked) {
+          return;
+        }
+        this.customer = picked;
+        this.dirty = true;
+      })
     },
 
     /** 关闭时把「有没有改动」一起交回去，打开它的页面就不用再单独查一次 */

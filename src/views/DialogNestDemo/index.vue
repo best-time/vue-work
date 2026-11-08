@@ -3,7 +3,7 @@
     <el-card shadow="never">
       <div class="dnd-page__top">
         <h2 class="dnd-page__h2">el-dialog 嵌套 3~4 层，代码怎么管</h2>
-        <el-tag size="mini" type="success">三页签都在真实运行</el-tag>
+        <el-tag size="mini" type="success">四页签都在真实运行</el-tag>
       </div>
 
       <p class="dnd-page__lead">
@@ -57,6 +57,9 @@
       <el-tab-pane label="③ 边界：ESC / 遮罩 / 该不该嵌套" name="boundary" lazy>
         <boundary-tab />
       </el-tab-pane>
+      <el-tab-pane label="④ 跨层传参：props 进 / provide 下" name="pass" lazy>
+        <pass-tab />
+      </el-tab-pane>
     </el-tabs>
 
     <el-card shadow="never" class="dnd-page__card">
@@ -91,14 +94,15 @@
 import NaiveTab from "./parts/NaiveTab";
 import StackTab from "./parts/StackTab";
 import BoundaryTab from "./parts/BoundaryTab";
+import PassTab from "./parts/PassTab";
 import { closeAll } from "./nest/stack";
 
-const TABS = ["naive", "stack", "boundary"];
+const TABS = ["naive", "stack", "boundary", "pass"];
 
 export default {
   name: "DialogNestDemoIndex",
 
-  components: { NaiveTab, StackTab, BoundaryTab },
+  components: { NaiveTab, StackTab, BoundaryTab, PassTab },
 
   data() {
     return { activeTab: "naive" };

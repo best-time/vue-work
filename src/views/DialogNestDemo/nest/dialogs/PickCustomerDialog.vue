@@ -8,6 +8,9 @@
     </div>
 
     <div style="display: flex; gap: 8px; margin-bottom: 10px">
+      <el-select>
+        <el-option label="12323"></el-option>
+      </el-select>
       <el-input
         v-model="keyword"
         size="small"
@@ -153,7 +156,9 @@ export default {
     },
 
     confirm() {
-      if (!this.selected) return;
+      if (!this.selected) {
+        return;
+      }
       this.$emit("resolve", { ...this.selected });
     },
   },

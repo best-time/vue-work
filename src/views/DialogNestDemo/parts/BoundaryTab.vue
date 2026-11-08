@@ -21,7 +21,7 @@
           </div>
 
           <p class="bdt__hint">
-            现在<div class="bdt__inline-tag">栈深度 {{ depth }}</div>
+            现在<span class="bdt__inline-tag">栈深度 {{ depth }}</span>
             —— 按下 <b>ESC</b>，只有最上面那层会关掉。Element 的
             <code>close-on-press-escape</code> 只声明了 prop，组件里没有 keydown 监听，所以原生
             el-dialog 按 ESC 是不关的，这个能力得自己补。
