@@ -193,7 +193,9 @@ export default {
       const h = this.bodyMaxHeight;
       if (h !== undefined && h !== null && h !== "") {
         style.maxHeight = typeof h === "number" ? h + "px" : h;
-        if (!style.overflow) style.overflow = "auto";
+        if (!style.overflow) {
+          style.overflow = "auto";
+        }
       }
       return style;
     },

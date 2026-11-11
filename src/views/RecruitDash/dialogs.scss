@@ -1,0 +1,550 @@
+/**
+ * 驾驶舱的浮层样式（待办全量列表 / 考核人员明细 / 风险督办 / 风险详情抽屉）
+ * ------------------------------------------------------------------
+ * 为什么单独一个文件、且不写在组件里：
+ *   <app-dialog> 默认 append-to-body，弹窗 DOM 落在 .dash-wrap 外面，
+ *   页面那套 .card / .tag / .tbl 样式一条都用不上（也拿不到 --primary 等变量）。
+ *   所以这里另起一套 rcd-* 前缀，变量在浮层根元素上重新声明一次，
+ *   视觉与页面里的小组件保持一致。
+ *
+ * 风险详情是右侧抽屉（.el-drawer.rcd-dw，走 el-drawer + append-to-body），
+ * 同样在 .dash-wrap 之外、一样拿不到变量，所以变量抽成了 @mixin，
+ * 弹窗和抽屉各 include 一次。
+ */
+
+@mixin rcd-scope-vars {
+  --primary: #409efe;
+  --primary-dark: #2b7fd4;
+  --primary-bg: rgba(64, 158, 254, 0.1);
+  --success: #67c23a;
+  --warning: #e6a23c;
+  --danger: #f56c6c;
+  --text: #303133;
+  --text-2: #606266;
+  --text-3: #909399;
+  --border: #dcdfe6;
+  --border-2: #e4e7ed;
+}
+
+.rcd-dlg {
+  /* ---- 与 .dash-wrap 对齐的那几个变量（弹窗不在 .dash-wrap 里，必须再声明） ---- */
+  @include rcd-scope-vars;
+
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(16, 42, 100, 0.18);
+
+  .el-dialog__header {
+    padding: 9px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  /* 原型 .modal .m-h h3：14px 主色 + 5px 竖条，弹窗标题统一成这个样式 */
+  .el-dialog__title {
+    display: inline-block;
+    padding-left: 10px;
+    border-left: 5px solid var(--primary);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 22px;
+    color: var(--primary);
+  }
+  .el-dialog__headerbtn {
+    top: 12px;
+  }
+  .el-dialog__body {
+    padding: 18px 20px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  /* 原型 .m-f：底部一条分隔线 + 右对齐按钮 */
+  .el-dialog__footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ---- 头部说明 ---- */
+  .rcd-dlg__hd {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-2);
+    b {
+      color: var(--text);
+    }
+    .ok {
+      color: var(--success);
+    }
+  }
+  .rcd-dlg__hd-r {
+    margin-left: auto;
+    color: var(--text-3);
+  }
+
+  /* ---- 筛选 chips ---- */
+  .rcd-chiprow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 0 8px;
+  }
+  .rcd-chip {
+    height: 24px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 22px;
+    cursor: pointer;
+    transition: all 0.15s;
+    &:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    &.is-on {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+  }
+
+  /* ---- 滚动区 ---- */
+  .rcd-dlg__scroll {
+    max-height: 420px;
+    overflow: auto;
+    border: 1px solid var(--border-2);
+    border-radius: 6px;
+  }
+
+  /* ---- 表格 ---- */
+  .rcd-tbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    color: var(--text);
+
+    th,
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-2);
+      text-align: left;
+      white-space: nowrap;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f4f8fe;
+      color: var(--text-2);
+      font-weight: 600;
+    }
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    tbody tr:hover td {
+      background: #f7faff;
+    }
+    /* 重点关注（C/D）整行淡淡标一下，扫一眼就能找到 */
+    tbody tr.is-focus td {
+      background: #fffaf3;
+    }
+    tbody tr.is-focus:hover td {
+      background: #fff4e5;
+    }
+
+    .c-type {
+      width: 108px;
+    }
+    .c-org {
+      width: 150px;
+    }
+    .c-time {
+      width: 152px;
+    }
+    .c-act {
+      width: 86px;
+    }
+  }
+  .rcd-tbl__main {
+    white-space: normal;
+    min-width: 240px;
+  }
+  .rcd-tbl__muted {
+    color: var(--text-3);
+  }
+
+  /* ---- 标签 ---- */
+  .rcd-tag {
+    display: inline-block;
+    min-width: 26px;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 20px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .rcd-tag--blue {
+    color: #1a7fdd;
+    background: rgba(64, 158, 254, 0.12);
+  }
+  .rcd-tag--cyan {
+    color: #0e8f8f;
+    background: rgba(19, 194, 194, 0.14);
+  }
+  .rcd-tag--purple {
+    color: #7b3fd1;
+    background: rgba(146, 84, 222, 0.12);
+  }
+  .rcd-tag--green {
+    color: #4a9e2f;
+    background: rgba(103, 194, 58, 0.14);
+  }
+  .rcd-tag--orange {
+    color: #c07a14;
+    background: rgba(230, 162, 60, 0.16);
+  }
+  .rcd-tag--gray {
+    color: #6b7280;
+    background: #f0f2f5;
+  }
+
+  /* ---- 小按钮 ---- */
+  .rcd-btn {
+    height: 26px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--text-2);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    &:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-bg);
+    }
+  }
+  .rcd-btn--sm {
+    height: 24px;
+    padding: 0 10px;
+  }
+
+  /* ---- 空态 ---- */
+  .rcd-empty {
+    padding: 28px 0;
+    text-align: center;
+    color: var(--text-3);
+  }
+
+  /* ============ 考核人员明细（原型 openModal · evalView） ============
+   * 原型这个弹窗里没有筛选条：标题写清「范围 · 年度 · 人数」，正文只有一张表，
+   * 表格下面一行口径说明、底部一个「关闭」。这里 1:1 照做。
+   */
+  &.rcd-dlg--people {
+    /* 原型 max-height:480px 的滚动容器：滚动条在表格外面，表头 sticky 吸在容器顶部 */
+    .rcd-pScroll {
+      max-height: 480px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    /* 原型 table.tbl：表头浅蓝底、单元格居中；机构 / 姓名 / 部门 / 结论四列左对齐。
+       表头底色写成实色 #ecf5fe（= rgba(64,158,254,.1) 压在白色上）：
+       半透明底色在 sticky 表头下会透出滚动中的行。 */
+    .rcd-tbl {
+      th {
+        padding: 9px 12px;
+        background: #ecf5fe;
+        color: var(--text-2);
+        font-weight: 500;
+        text-align: center;
+      }
+      td {
+        padding: 10px 12px;
+        text-align: center;
+      }
+      tbody tr:hover td {
+        background: #f7f9ff;
+      }
+    }
+    .rcd-tbl__l {
+      text-align: left;
+    }
+
+    /* 原型 .tag + 内联 GRADE_COLOR：实色底、白字、4px 圆角 */
+    .rcd-tag--solid {
+      min-width: 0;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 12px;
+    }
+
+    /* 表格下方那行 hint */
+    .rcd-note {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-3);
+    }
+  }
+
+  /* ==================== 风险督办（居中弹窗，原型 openModal） ==================== */
+
+  /* 表单栅格：原型 .fgrid —— 两列，.fi.full 占满整行 */
+  .rcd-fgrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 16px;
+  }
+  .rcd-fi {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+
+    > label {
+      font-size: 12.5px;
+      color: var(--text-2);
+    }
+    &--full {
+      grid-column: 1 / -1;
+    }
+  }
+  /* 只读的「督办事项」：原型 .fi .fv，纯文本不带边框 */
+  .rcd-fv {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .rcd-inp {
+    box-sizing: border-box;
+    width: 100%;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    &:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-bg);
+    }
+  }
+  .rcd-textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 76px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    &:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-bg);
+    }
+  }
+}
+
+/* ==================== 风险详情（右侧抽屉，原型 openDrawer） ==================== */
+/* 抽屉本体交给 <el-drawer>（direction=rtl、size=min(720px, 92vw)、append-to-body），
+   这里只做三件事：
+     1. 变量重声明 —— 抽屉 append 到 body，不在 .dash-wrap 里，拿不到 --primary；
+     2. 改掉 Element 的默认外观：header 有 32px 下边距、标题 20px 灰字、
+        面板阴影是居中阴影，跟原型的 52px 蓝头 + 左侧长阴影不一致；
+     3. 内容区留白（原型 .body 是 18px 22px 24px），滚动交给 .el-drawer__body。 */
+.el-drawer.rcd-dw {
+  @include rcd-scope-vars;
+
+  box-shadow: -12px 0 40px rgba(15, 23, 42, 0.18);
+
+  .el-drawer__header {
+    flex: none;
+    box-sizing: border-box;
+    height: 52px;
+    margin: 0;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--border-2);
+  }
+
+  /* 原型 .drawer .m-h h3：主色 + 左侧 3px 竖条（不是方块） */
+  .rcd-dw__t {
+    position: relative;
+    margin: 0;
+    padding-left: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--primary);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: -2px;
+      top: 15%;
+      width: 3px;
+      height: 70%;
+      border-radius: 1px;
+      background: var(--primary);
+    }
+  }
+
+  /* ✕：Element 是 20px 继承色，收到原型的 17px 灰 */
+  .el-drawer__close-btn {
+    padding: 0;
+    font-size: 17px;
+    line-height: 1;
+    color: var(--text-3);
+    transition: color 0.15s;
+    &:hover {
+      color: var(--text);
+    }
+  }
+
+  .el-drawer__body {
+    padding: 18px 22px 24px;
+  }
+
+  /* 要素网格：原型 .desc（三列，4 项排成 3 + 1） */
+  .rcd-desc {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 18px;
+  }
+  .rcd-di {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+
+    span {
+      font-size: 11.5px;
+      color: var(--text-3);
+    }
+    b {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+  }
+
+  /* 小节标题：原型 .sec-t（竖条 + 13.5px 粗体，首个不带顶距） */
+  .rcd-sect {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 0 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+
+    &::before {
+      content: "";
+      flex: none;
+      width: 3px;
+      height: 13px;
+      border-radius: 2px;
+      background: var(--primary);
+    }
+  }
+  .rcd-para {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  /* 处理记录时间线：原型 .tl（左侧竖线 + 空心蓝点） */
+  .rcd-tl {
+    position: relative;
+    margin: 0;
+    padding: 0 0 0 16px;
+    list-style: none;
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: var(--border-2);
+    }
+
+    li {
+      position: relative;
+      padding: 0 0 14px 14px;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--text);
+
+      &::before {
+        content: "";
+        position: absolute;
+        left: -16px;
+        top: 4px;
+        width: 8px;
+        height: 8px;
+        border: 2px solid var(--primary);
+        border-radius: 50%;
+        background: #fff;
+      }
+      &:last-child {
+        padding-bottom: 0;
+      }
+    }
+  }
+  .rcd-tl__tt {
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+
+  /* 关联业务按钮：原型 .btn / .btn-pri（30px 高，不是 Element 那套） */
+  .rcd-btn {
+    height: 30px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: all 0.15s;
+
+    &:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    &--pri {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+      &:hover {
+        border-color: var(--primary-dark);
+        background: var(--primary-dark);
+        color: #fff;
+      }
+    }
+  }
+}

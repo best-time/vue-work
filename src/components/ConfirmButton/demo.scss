@@ -1,0 +1,351 @@
+/**
+ * 演示页样式（全局，不加 scoped）。
+ *
+ * 页签按模块拆成 parts/ 下的子组件后，父级 scoped 样式只给子组件「根节点」打 data-v，
+ * 内部元素一律不吃 —— 卡片、表格、日志条全会变裸样式。
+ * 所以这份样式和 RecruitDash 的 dash.scss 一样走全局，作用域靠唯一的 .cbd 前缀自带。
+ */
+.cbd {
+  padding: 16px;
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 16px;
+  }
+
+  &__head-main {
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: 20px;
+    font-weight: 600;
+    color: $color-3;
+  }
+
+  &__desc {
+    max-width: 780px;
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.75;
+    color: $color-6;
+
+    code {
+      padding: 1px 4px;
+      border-radius: 3px;
+      background-color: rgba($color-primary, 0.08);
+      color: $color-primary;
+    }
+  }
+
+  &__meta {
+    flex: none;
+    padding: 8px 12px;
+    border: 1px dashed #d8dfe9;
+    border-radius: 6px;
+    background-color: #fafcff;
+    color: $color-9;
+    font-size: 12px;
+    line-height: 1.9;
+
+    code {
+      color: $color-primary;
+    }
+  }
+
+  &__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
+
+    @media (max-width: 1240px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__tabs {
+    min-width: 0;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+
+    @media (max-width: 1000px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__card {
+    border-radius: 8px;
+
+    &--wide {
+      grid-column: 1 / -1;
+    }
+  }
+
+  &__card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+
+    code {
+      padding: 1px 6px;
+      border-radius: 3px;
+      background-color: rgba($color-primary, 0.08);
+      color: $color-primary;
+      font-size: 12px;
+    }
+  }
+
+  &__pad {
+    padding: 4px 2px 0;
+  }
+
+  &__help {
+    margin-top: 12px;
+    color: $color-9;
+    font-size: 12px;
+    line-height: 1.75;
+
+    code {
+      padding: 1px 4px;
+      border-radius: 3px;
+      background-color: #f2f4f8;
+      color: $color-6;
+    }
+  }
+
+  &__hint {
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-left: 3px solid rgba($color-primary, 0.4);
+    border-radius: 4px;
+    background-color: #f7faff;
+    color: $color-6;
+    font-size: 12px;
+    line-height: 1.75;
+
+    code {
+      color: $color-primary;
+    }
+  }
+
+  &__muted {
+    color: $color-9;
+    font-size: 12px;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ---------- ② 列表行 ---------- */
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px dashed #eef1f6;
+
+    &:last-of-type {
+      border-bottom: 0;
+    }
+  }
+
+  &__row-name {
+    min-width: 0;
+    overflow: hidden;
+    color: $color-3;
+    font-size: 13px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  &__empty {
+    padding: 12px 0;
+    color: $color-9;
+    font-size: 13px;
+  }
+
+  /* ---------- ② 属性表 ---------- */
+  &__tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+
+    th,
+    td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #f0f2f6;
+      text-align: left;
+    }
+
+    th {
+      background-color: #fafbfd;
+      color: $color-6;
+      font-weight: 600;
+    }
+
+    td {
+      color: $color-6;
+    }
+
+    code {
+      padding: 1px 4px;
+      border-radius: 3px;
+      background-color: #f2f4f8;
+      color: $color-primary;
+    }
+  }
+
+  /* ---------- ③ 富内容表单 ---------- */
+  &__rich-tip {
+    margin: 0 0 10px;
+    color: $color-6;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  &__rich-ck {
+    margin-top: 10px;
+  }
+
+  &__rich-err {
+    margin: 8px 0 0;
+    color: $red-color;
+    font-size: 12px;
+  }
+
+  &__kv {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px dashed #eef1f6;
+    color: $color-6;
+    font-size: 13px;
+
+    code {
+      max-width: 62%;
+      overflow: hidden;
+      color: $color-3;
+      font-size: 12px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  }
+
+  /* ---------- ④ 说明列表 ---------- */
+  &__notes {
+    padding-left: 18px;
+    color: $color-6;
+    font-size: 12px;
+    line-height: 1.9;
+    list-style: decimal;
+
+    li {
+      list-style: decimal;
+    }
+
+    code {
+      padding: 1px 4px;
+      border-radius: 3px;
+      background-color: #f2f4f8;
+      color: $color-6;
+    }
+  }
+
+  /* ---------- 日志 ---------- */
+  &__logcard {
+    position: sticky;
+    top: 16px;
+    border-radius: 8px;
+  }
+
+  &__log {
+    max-height: 520px;
+    overflow-y: auto;
+    border-radius: 6px;
+    background-color: #fafbfd;
+  }
+
+  &__log-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid #f0f2f6;
+    font-size: 12px;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+
+  &__log-t {
+    flex: none;
+    min-width: 54px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background-color: #eef1f6;
+    color: $color-6;
+    font-size: 11px;
+    text-align: center;
+
+    &.is-click {
+      background-color: rgba($color-primary, 0.1);
+      color: $color-primary;
+    }
+    &.is-confirm {
+      background-color: #e8f3ff;
+      color: #2b7fd4;
+    }
+    &.is-success {
+      background-color: #eaf7e6;
+      color: #529b2e;
+    }
+    &.is-error {
+      background-color: rgba($red-color, 0.1);
+      color: $red-color;
+    }
+    &.is-cancel,
+    &.is-block {
+      background-color: #fdf3e6;
+      color: #b88230;
+    }
+  }
+
+  &__log-x {
+    flex: 1;
+    min-width: 0;
+    color: $color-6;
+    word-break: break-all;
+  }
+
+  &__log-time {
+    flex: none;
+    color: $color-9;
+    font-size: 11px;
+  }
+
+  &__log-empty {
+    padding: 16px 12px;
+    color: $color-9;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+}
