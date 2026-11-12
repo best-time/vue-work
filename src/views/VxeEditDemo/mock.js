@@ -93,3 +93,36 @@ export function createStaff() {
     }
   ]
 }
+
+/**
+ * 模拟「保存备注」接口：PUT /api/staff/:id/remark
+ *
+ * 真实项目里这里是 fetch / axios，demo 用 setTimeout 假装走了一趟网络。
+ * 顺便做两件真实接口常干的事，用来验证「写回表格的是接口返回值，不是本地草稿」：
+ *   - trim + 把连续空格压成一个（服务端做规整，回包可能和入参不同）
+ *   - 返回一个客户端算不出来的 updatedAt
+ *
+ * @param {{ id: number, remark: string }} payload
+ * @param {{ fail?: boolean }} [opts] fail = true 时返回 504，用来演示失败分支
+ */
+export function saveRemark(payload, opts = {}) {
+  const startedAt = Date.now()
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (opts.fail) {
+        reject(new Error('请求超时（504）：备注保存失败，请重试'))
+        return
+      }
+      resolve({
+        code: 0,
+        message: 'ok',
+        data: {
+          id: payload.id,
+          remark: String(payload.remark).trim().replace(/\s+/g, ' '),
+          updatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
+        },
+        cost: Date.now() - startedAt
+      })
+    }, 620)
+  })
+}

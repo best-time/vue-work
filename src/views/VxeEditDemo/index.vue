@@ -4,8 +4,9 @@
       <h1 class="ved__title">vxe-table 行内编辑</h1>
       <p class="ved__desc">
         基于项目里的 <code>vxe-table 3.6.17</code>（Vue 2 兼容版）。
-        四个页签分别演示：单格编辑、整行编辑、各类编辑器、条件编辑与代码控制。
-        表格数据都是本地的，「保存」只做模拟提交，不发请求。
+        五个页签分别演示：单格编辑、整行编辑、各类编辑器、条件编辑与代码控制，
+        以及一个带「确认 / 取消」并模拟调接口保存的 <code>el-input</code> 行内编辑器。
+        表格数据都是本地的，「保存」只做模拟提交，不发真实请求。
       </p>
 
       <div class="ved__facts">
@@ -46,6 +47,9 @@
       <el-tab-pane label="④ 条件编辑 & 代码控制" name="api" lazy>
         <api-tab />
       </el-tab-pane>
+      <el-tab-pane label="⑤ el-input + 确认取消" name="confirm" lazy>
+        <inline-confirm-tab />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -55,12 +59,13 @@ import CellTab from "./parts/CellTab.vue";
 import RowTab from "./parts/RowTab.vue";
 import EditorTab from "./parts/EditorTab.vue";
 import ApiTab from "./parts/ApiTab.vue";
+import InlineConfirmTab from "./parts/InlineConfirmTab.vue";
 
-const TABS = ["cell", "row", "editor", "api"];
+const TABS = ["cell", "row", "editor", "api", "confirm"];
 
 export default {
   name: "VxeEditDemo",
-  components: { CellTab, RowTab, EditorTab, ApiTab },
+  components: { CellTab, RowTab, EditorTab, ApiTab, InlineConfirmTab },
 
   data() {
     const tab = this.$route.query.tab;
