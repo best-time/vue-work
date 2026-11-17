@@ -318,20 +318,7 @@ export function dimsOf(onboardTotal, year) {
   return out
 }
 
-/** conic-gradient 字符串（环形图）；数据全 0 时给一圈灰底，不留空白 */
-export function conicOf(rows) {
-  const total = sum(rows.map((r) => r.v))
-  if (!total) return 'conic-gradient(#eef2f9 0deg 360deg)'
-  let acc = 0
-  return `conic-gradient(${rows
-    .map((r) => {
-      const s = (acc / total) * 360
-      acc += r.v
-      const e = (acc / total) * 360
-      return `${r.c} ${s}deg ${e}deg`
-    })
-    .join(',')})`
-}
+/* 环图已改由 echarts 画（DonutChart.vue），原 conic-gradient 拼串的 conicOf() 已移除 */
 
 /* ============================ 风险预警 / 待办 ============================ */
 

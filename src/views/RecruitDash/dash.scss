@@ -15,6 +15,32 @@
  *     网格层用一条 fixed 伪元素 —— 视觉效果与原型一致；
  *   · 所有选择器都嵌在 .dash-wrap / .rcd-page 下，不会外溢到项目里其它页面。
  *
+ * 两处实现换了、样式没换（视觉仍照原型）：
+ *   · 入职人员结构环图：原型是 conic-gradient 手绘圆环，这里交给 echarts（DonutChart.vue），
+ *     圆心两行字也由 echarts 的 graphic 文字画（不用 DOM 叠层）—— 走 series.label 的话，
+ *     hover 时强调态会按「扇区外侧」重算 label，圆心会多出一份文字；graphic 不参与 hover。
+ *   · 招聘后评价的两张表：原型是 <table class="tbl eval-tbl"> + sticky 表头，这里换成 el-table
+ *     （EvalOrgTable / EvalDeptPanel），原型那套外观按 el-table 的 DOM 重写成 .eval-etbl ——
+ *     表头渐变、只留下边框、首列左对齐、行高 34px、hover 淡蓝、选中行高亮都对齐原型；
+ *     原 .eval-tbl / .tbl-scroll / .th-sticky 三条已随之删除。
+ *
+ * 关于 flex 的 gap（全部改成了子元素 margin）：
+ *   旧内核（Chromium 84 / Safari 14.1 之前）不支持 flex 容器上的 gap，所以 flex 一律用
+ *   `> *:not(:last-child) { margin-right: N }`（纵向容器用 margin-bottom）表达同一份间距；
+ *   gap 值都原样搬过来，单行时像素级等价。
+ *   为什么是「非末项加右侧 margin」而不是「非首项加左侧 margin」：
+ *     · 右侧留白不会顶开容器的首元素，也不跟子元素自身的 margin-left 抢值；
+ *       像 .lg-n 这类 `margin-left: auto` 的靠右项，左自动边距依旧生效，不会被覆盖。
+ *   三处例外：
+ *     · .card-h h3 / .sec-t 的间距落在「::before ↔ 首段文字」之间（文字是匿名 flex item，
+ *       伪元素也不参与 :last-child 计数），所以改成给 ::before 加 margin-right；
+ *     · .lgd li 中间那段图例文字是裸文本节点（匿名 flex item），`:not(:last-child)` 选不到，
+ *       仍由 .dot 的 margin-right: 5 + 8 = 13px 承担；
+ *     · .card-h 原来的 row-gap: 8px 只是换行时的行距，本页 1180 以上都不换行 → 直接删掉。
+ *   **grid 容器上的 gap 没有动**（.stat-row / .grid2 / .grid3 / .fun-row）：
+ *   这批浏览器连 grid 都不支持，改了没有意义，而且 grid-gap 换成 margin 会破坏
+ *   grid-template 的均分。哪天要兼容，得整块换成 flex + 百分比宽度。
+ *
  * 关于不加 scoped（index.vue 里是 `<style lang="scss" src="./dash.scss">`）：
  *   index.vue 拆成多个子组件后，scoped 只给「本组件模板里出现的元素」打 data-v 标记，
  *   子组件内部的 .card-b / .card-h 拿不到父级的标记，样式会整片失效。
@@ -73,6 +99,19 @@
   background: transparent;
 }
 
+/*
+ * ⚠️ Element 量「系统滚动条宽度」的探针就是这个类
+ * （utils/scrollbar-width.js：造一个 .el-scrollbar__wrap、overflow:scroll 的 div 量差值，
+ *  结果在模块作用域里缓存；表格用它决定表头右侧留多宽的 gutter、表体可用宽度减多少）。
+ * 本页给表格滚动条定制成 8px 之后，探针必须也量到 8px，否则表头按系统值（Chrome 15px；
+ * macOS 悬浮滚动条 0px）留 gutter、表体实际只少 8px，表头与表体之间会错位、行分隔线
+ * 也会在滚动条前留出一条 7px 的白缝。
+ */
+.el-scrollbar__wrap::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
 /* ===== 入场动效（原型 511 行）===== */
 @keyframes dashRise {
   from {
@@ -100,16 +139,6 @@
   100% {
     transform: translateX(320%);
     opacity: 0;
-  }
-}
-@keyframes donutIn {
-  from {
-    opacity: 0;
-    transform: scale(0.8) rotate(-30deg);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 
@@ -197,7 +226,7 @@
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 8px;
+    /* gap 换成 ::before 的 margin-right（见下方 .card-h h3::before） */
   }
   .card-h h3::before {
     content: "";
@@ -205,6 +234,8 @@
     height: 14px;
     border-radius: 2px;
     background: var(--primary);
+    /* 原 gap: 8px 落在「::before ↔ 标题文字」之间 */
+    margin-right: 8px;
   }
   .card-b {
     padding: 14px 16px;
@@ -213,7 +244,9 @@
   .btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    > *:not(:last-child) {
+      margin-right: 5px;
+    }
     height: 32px;
     padding: 0 14px;
     border: 1px solid var(--border-2);
@@ -318,7 +351,9 @@
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 10px;
+    > *:not(:last-child) {
+      margin-right: 10px;
+    }
     padding: 12px 16px;
     border-bottom: 1px solid var(--border);
   }
@@ -329,12 +364,16 @@
   .tb-r {
     display: flex;
     align-items: center;
-    gap: 8px;
+    > *:not(:last-child) {
+      margin-right: 8px;
+    }
     flex-wrap: wrap;
   }
   .dash-q {
     display: flex;
-    gap: 10px;
+    > *:not(:last-child) {
+      margin-right: 10px;
+    }
     align-items: center;
     flex-wrap: wrap;
   }
@@ -369,7 +408,7 @@
     margin: 18px 0 10px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    /* gap 换成 ::before 的 margin-right（见下方 &::before） */
     &:first-child {
       margin-top: 0;
     }
@@ -379,6 +418,8 @@
       height: 13px;
       background: var(--primary);
       border-radius: 2px;
+      /* 原 gap: 8px 落在「::before ↔ 标题文字」之间（右侧按钮组是 margin-left:auto，不受影响） */
+      margin-right: 8px;
     }
   }
 
@@ -439,7 +480,9 @@
     font-size: 12.5px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    > *:not(:last-child) {
+      margin-right: 6px;
+    }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -524,39 +567,24 @@
     }
   }
 
-  /* 环形图 + 图例 */
+  /* 环形图（echarts 画环，DOM 里只留一个 156px 的框）+ 图例 */
   .donut-wrap {
     display: flex;
     align-items: center;
-    gap: 22px;
+    > *:not(:last-child) {
+      margin-right: 22px;
+    }
   }
-  .donut {
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    flex-shrink: 0;
+  .rcd-donut {
     position: relative;
-    &::after {
-      content: "";
-      position: absolute;
-      inset: 26px;
-      background: #fff;
-      border-radius: 50%;
-    }
-  }
-  .donut-c {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    z-index: 2;
-    text-align: center;
-    b {
-      font-size: 22px;
-    }
-    span {
-      font-size: 11px;
-      color: var(--text-3);
+    width: 156px;
+    height: 156px;
+    flex-shrink: 0;
+    /* 原型是 box-shadow: 0 16px 32px -18px；canvas 只吃 drop-shadow（没有负 spread），
+       blur 与偏移相应收一点，观感基本一致。★ 圆心两行字也是 canvas 画的（echarts graphic），
+       会跟着吃到这层投影 —— 与原型（DOM 文字、无投影）有细微差别，见 DonutChart.vue 注释 */
+    .e-chart {
+      filter: drop-shadow(0 10px 16px rgba(16, 42, 100, 0.28));
     }
   }
   .lgd {
@@ -565,7 +593,8 @@
     li {
       display: flex;
       align-items: center;
-      gap: 8px;
+      /* 中间的图例文字是裸文本节点，`:not(:last-child)` 选不到 → 间距交给 .dot 的
+         margin-right（5 + 8）；右侧 .lg-n 通过 margin-left:auto 靠右 */
       padding: 5px 0;
       font-size: 12.5px;
       color: var(--text-2);
@@ -575,7 +604,7 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      margin-right: 5px;
+      margin-right: 13px;
       vertical-align: 1px;
     }
     .lg-n {
@@ -590,7 +619,9 @@
   .risk-i {
     display: flex;
     align-items: center;
-    gap: 10px;
+    > *:not(:last-child) {
+      margin-right: 10px;
+    }
     padding: 9px 0;
     border-bottom: 1px solid var(--border);
     &:last-child {
@@ -604,22 +635,187 @@
     flex-shrink: 0;
   }
 
-  /* 后评价 */
-  .eval-tbl {
-    th,
-    td {
-      padding: 7px 10px;
-      text-align: center;
+  /* ------------------------------------------------------------------
+   * 后评价卡的高度链（表格撑满卡片剩余空间）
+   *   .eval-card（定高）→ .card-b（flex:1，列）→ .eval-body（flex:1，列）
+   *   → .eval-fit（flex:1）→ el-table 的 :height 由 mixins/fitTable 量出来写进去
+   * 高度的唯一来源是 --eval-card-h；想变高/变矮改这一个变量，别去动表格的 max-height
+   * （el-table 只认像素高度，写死 max-height 就谈不上自适应了）。
+   * ------------------------------------------------------------------ */
+  .card.eval-card {
+    height: var(--eval-card-h, 730px);
+    display: flex;
+    flex-direction: column;
+
+    > .card-h {
+      flex: none;
     }
-    td:first-child,
-    th:first-child {
-      text-align: left;
+    > .card-b {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      /* 兜底：下钻面板全展开 + 表格最小高度仍然放不下时，卡片内部滚动，别顶破版面 */
+      overflow: auto;
+
+      /* 筛选行 / 指标行 / 说明这些都不许被压缩，只有表格区吃剩余空间 */
+      > * {
+        flex: none;
+      }
+      > .eval-body {
+        flex: 1;
+        min-height: 0;
+      }
     }
   }
-  .eval-tr {
-    cursor: pointer;
-    &:hover {
-      background: var(--border-2);
+  /* 两个视图（机构表 / 部门表）的根：自己也是 flex 列，表格区吃剩下的高度 */
+  .eval-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+
+    > .hint,
+    > .rule-bar,
+    > .eval-detail {
+      flex: none;
+    }
+    > .eval-fit {
+      flex: 1;
+      /* 与 mixins/fitTable 的 fitTableMinHeight 保持一致：
+         下钻面板展开后表格会被挤矮，但不会低于这个值（再不够就由 .card-b 出滚动条） */
+      min-height: 160px;
+      overflow: hidden;
+    }
+  }
+
+  /* 后评价表格：el-table 版皮肤
+     原型是 <table class="tbl eval-tbl">（padding 7px 10px、只有下边框、表头 180deg 渐变、
+     首列左对齐、行 hover 淡蓝）。改成 el-table 后要按它的 DOM 重写一遍：
+       · 默认 td 有 12px 上下 padding（行高会到 43px），改 7px 才能保持原型约 33px；
+       · el-table 根节点上那两条 ::before/::after 是给 border 模式画的，会和外层 border 叠成双线；
+       · 选择器都多带一个 .el-table（同节点），是为了压过 Element 的默认背景/边框
+         —— 主题 CSS 和本文件的加载顺序不保证，同权重谁后谁赢会飘。 */
+  .eval-etbl.el-table {
+    font-size: 13px;
+    color: var(--text-2);
+    border: 1px solid var(--border);
+    /* 右下角故意是直角：纵向滚动条就长在表体的右边缘上，根上的 overflow:hidden 会按圆角
+       把滚动条的末端斜着切掉一块（6px 弧长），看着就是「滚动条没贴到表格底边」。
+       其余三个角照旧圆，视觉上只有一个角不同，而那个角本来就被滚动条占着。 */
+    border-radius: 6px 6px 0 6px;
+    overflow: hidden;
+
+    &::before,
+    &::after {
+      display: none;
+    }
+
+    /* 表体高度不再依赖 Element 算出来的 bodyHeight：根节点改成 flex 列，表头固定，
+       表体吃满剩下多少高度。
+       Element 的 bodyHeight = 根 clientHeight − 表头，而且只在 $ready 且 clientHeight
+       非 0 时才算：数据从几十行变成两行、容器刚变高、表格先隐藏再显示这几种时机，这个值
+       可能还是旧的、甚至是 null（为 null 时那个内联 height 会被整个摘掉）。表体一退回
+       内容高度，横向滚动条立刻跳到「最后一行下面」，就是「滚动条不在 table 高度最下面」。
+       用 flex 兜底后，不管有几条数据、Element 算没算对，表体永远是表格里最后一块，
+       横向滚动条永远压在表格最下面。 */
+    display: flex;
+    flex-direction: column;
+
+    > .el-table__header-wrapper {
+      flex: none;
+    }
+    > .el-table__body-wrapper {
+      flex: 1 1 auto;
+      min-height: 0;
+      /* 压掉 Element 的内联 height（可能是过期值或压根没有） */
+      height: auto !important;
+    }
+
+    /* 一旦出现横向滚动条，把表格的「底边」整个让给滚动条：
+         · 去掉 1px 下边框 —— 否则滚动条下沿和卡片之间永远夹着一条 1px 线，
+           看着就是「横向滚动条不在表格最下面」；
+         · 左下角也改直角 —— 圆角会把滚动条最左端斜着切掉一块。
+       Element 的表体高度是拿根节点 clientHeight 减表头算的（updateElsHeight），
+       少掉 1px 边框后表体自动多吃 1px，滚动条正好落在表格外沿上，中间不留缝。
+       只在这个状态改：窗口够宽、没有横向滚动条时，表格底部仍需要那条边框。 */
+    &.el-table--scrollable-x {
+      border-bottom: 0;
+      border-radius: 6px 6px 0 0;
+    }
+
+    th.el-table__cell {
+      padding: 0;
+      background: linear-gradient(180deg, #f8faff, #eff4ff);
+      border-bottom: 1px solid #e4ebf7;
+      .cell {
+        padding: 0 10px;
+        line-height: 34px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-2);
+        white-space: nowrap;
+      }
+    }
+
+    td.el-table__cell {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      .cell {
+        padding: 0 10px;
+        line-height: 19px;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+    }
+    /* 最后一行的底线交给外层容器的 border，别叠成 2px */
+    .el-table__body tr:last-child td.el-table__cell {
+      border-bottom: 0;
+    }
+
+    /* 滚动条：跟 .rcd-page 同一套皮肤（8px / 透明轨道 / 圆角拇指）。
+       原生滚动条的拇指四周留了约 3px 透明内边距（为了圆角），滚到最底时拇指末端
+       离表格底边还剩 3px 空白 —— 和上面的圆角裁切叠在一起，就是「滚动条底端没贴齐
+       表格底边」的观感来源。自定义之后拇指末端正好压在表体下沿，只剩外层 1px 边框。 */
+    .el-table__body-wrapper {
+      &::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: #cdd4e4;
+        border-radius: 8px;
+      }
+      &::-webkit-scrollbar-track,
+      &::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+    }
+
+    /* 首列左对齐（原型 td:first-child / th:first-child） */
+    .c-l .cell {
+      text-align: left;
+    }
+
+    /* 行 hover / 选中行 */
+    .el-table__body tr.eval-tr {
+      cursor: pointer;
+    }
+    &.el-table--enable-row-hover .el-table__body tr.eval-tr:hover > td.el-table__cell {
+      background: var(--primary-bg-2);
+    }
+    .el-table__body tr.eval-tr.is-picked > td.el-table__cell {
+      background: var(--primary-bg);
+    }
+    /* 选中行再 hover 时保持选中色（否则被上面那条 hover 规则压成更浅的 -2 色，
+       「已选中」看着像没选中） */
+    &.el-table--enable-row-hover .el-table__body tr.eval-tr.is-picked:hover > td.el-table__cell {
+      background: var(--primary-bg);
+    }
+
+    /* 空数据文案 */
+    .el-table__empty-text {
+      color: var(--text-3);
+      font-size: 12.5px;
     }
   }
   .eval-detail {
@@ -632,7 +828,9 @@
   .eval-rank-i {
     display: flex;
     align-items: center;
-    gap: 8px;
+    > *:not(:last-child) {
+      margin-right: 8px;
+    }
     padding: 4px 0;
   }
 
@@ -658,7 +856,9 @@
     background: linear-gradient(180deg, #fff, #fbfcff);
     border-radius: 12px 12px 0 0;
     flex-wrap: wrap;
-    row-gap: 8px;
+    /* row-gap: 8px 已去掉：它只在换行时生效，本页在 1280 以上都不会换行。
+       换行时行距会退化为 0 —— 真要保住得用 margin，但单行时 margin-top 会
+       把第二个元素顶偏（align-items:center 下），得不偿失 */
   }
   .card-h h3 {
     font-size: 14.5px;
@@ -795,7 +995,9 @@
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 10px;
+      > *:not(:last-child) {
+        margin-right: 10px;
+      }
     }
     .sl {
       font-size: 12.5px;
@@ -840,12 +1042,6 @@
   @supports ((-webkit-background-clip: text) or (background-clip: text)) {
     .kpi .sv {
       background: linear-gradient(135deg, var(--ac, #1c5cb0), var(--ac2, #69b6ff) 72%, #fff);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-    .donut-c b {
-      background: linear-gradient(135deg, #16a34a, #22c55e);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
@@ -921,27 +1117,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* 环形图 */
-  .donut {
-    width: 156px;
-    height: 156px;
-    box-shadow: 0 16px 32px -18px rgba(16, 42, 100, 0.5);
-    animation: donutIn 0.8s cubic-bezier(0.2, 0.8, 0.25, 1) both;
-    &::after {
-      inset: 25px;
-      box-shadow: 0 0 0 1px #eff3fb, inset 0 2px 10px rgba(16, 42, 100, 0.07);
-    }
-  }
-  .donut-c b {
-    font-size: 25px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: #1c5cb0;
-  }
-  .donut-c span {
-    display: block;
-    margin-top: 2px;
-  }
+  /* 环形图：尺寸/阴影在 .rcd-donut 里，圆心字号在 DonutChart 的 title 配置里，这里只剩图例 */
   .lgd {
     li {
       padding: 7px 9px;
@@ -981,13 +1157,6 @@
   }
 
   /* 后评价 */
-  .eval-tbl th {
-    background: linear-gradient(180deg, #f8faff, #eff4ff);
-    border-bottom: 1px solid #e4ebf7;
-  }
-  .eval-tbl .eval-tr:hover {
-    background: var(--primary-bg-2);
-  }
   .ev-num {
     font-variant-numeric: tabular-nums;
   }
@@ -1009,7 +1178,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 8px;
+    > *:not(:last-child) {
+      margin-right: 8px;
+    }
     /* 右侧状态标签不参与压缩：左边文案很长时也不许把它挤扁 */
     > .tag {
       flex: none;
@@ -1030,7 +1201,9 @@
   .impl-prog {
     display: flex;
     align-items: center;
-    gap: 10px;
+    > *:not(:last-child) {
+      margin-right: 10px;
+    }
     margin-top: 7px;
   }
   .impl-pct {
@@ -1066,12 +1239,16 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
+    > *:not(:last-child) {
+      margin-right: 6px;
+    }
   }
   .risk-filter {
     display: flex;
     align-items: center;
-    gap: 8px;
+    > *:not(:last-child) {
+      margin-right: 8px;
+    }
     flex-wrap: wrap;
   }
   .risk-chip {
@@ -1084,14 +1261,18 @@
 
   .eval-scope {
     display: flex;
-    gap: 10px;
+    > *:not(:last-child) {
+      margin-right: 10px;
+    }
     align-items: center;
     margin-bottom: 12px;
     flex-wrap: wrap;
   }
   .eval-nums {
     display: flex;
-    gap: 24px;
+    > *:not(:last-child) {
+      margin-right: 24px;
+    }
     flex-wrap: wrap;
     align-items: center;
     margin-bottom: 12px;
@@ -1103,20 +1284,10 @@
     margin-bottom: 10px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    > *:not(:last-child) {
+      margin-right: 6px;
+    }
     flex-wrap: wrap;
-  }
-  .tbl-scroll {
-    max-height: 420px;
-    overflow: auto;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-  }
-  .th-sticky {
-    position: sticky;
-    top: 0;
-    background: var(--primary-bg);
-    z-index: 1;
   }
   .eval-bar {
     flex: 1;

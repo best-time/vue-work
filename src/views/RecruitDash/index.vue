@@ -87,8 +87,9 @@
  *   TodoCard.vue      待办事项 → TodoDialog.vue（查看全部）
  *   RiskCard.vue      风险预警（等级筛选 lv.sync）
  *                     → RiskDetailDrawer.vue（查看，右侧抽屉）+ RiskUrgeDialog.vue（督办，居中弹窗）
- *   StatSection.vue   招聘统计分析外壳 → FunnelChart.vue + DonutChart.vue
- *   EvalSection.vue   招聘后评价外壳 → EvalOrgTable.vue + EvalDeptPanel.vue
+ *   StatSection.vue   招聘统计分析外壳 → FunnelChart.vue（div 进度条）
+ *                                    → DonutChart.vue（echarts 环图 + HTML 图例）
+ *   EvalSection.vue   招聘后评价外壳 → EvalOrgTable.vue + EvalDeptPanel.vue（两张表都是 el-table）
  *                                    → EvalPeopleDialog.vue（C/D 级明细）
  *
  * 三个弹窗（待办 / 考核人员 / 风险督办）都是 append-to-body 的，DOM 落在

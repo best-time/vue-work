@@ -66,7 +66,9 @@
   .rcd-dlg__hd {
     display: flex;
     align-items: center;
-    gap: 12px;
+    > *:not(:last-child) {
+      margin-right: 12px;
+    }
     flex-wrap: wrap;
     font-size: 12px;
     color: var(--text-2);
@@ -86,7 +88,9 @@
   .rcd-chiprow {
     display: flex;
     align-items: center;
-    gap: 8px;
+    > *:not(:last-child) {
+      margin-right: 8px;
+    }
     flex-wrap: wrap;
     margin: 10px 0 8px;
   }
@@ -307,7 +311,9 @@
   .rcd-fi {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    > *:not(:last-child) {
+      margin-bottom: 6px;
+    }
     min-width: 0;
 
     > label {
@@ -433,7 +439,9 @@
   .rcd-di {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    > *:not(:last-child) {
+      margin-bottom: 3px;
+    }
     min-width: 0;
 
     span {
@@ -451,7 +459,7 @@
   .rcd-sect {
     display: flex;
     align-items: center;
-    gap: 8px;
+    /* gap 换成 &::before 的 margin-right（见下方） */
     margin: 18px 0 10px;
     font-size: 13.5px;
     font-weight: 600;
@@ -464,6 +472,8 @@
       height: 13px;
       border-radius: 2px;
       background: var(--primary);
+      /* 原 gap: 8px 落在「::before ↔ 文字」之间 */
+      margin-right: 8px;
     }
   }
   .rcd-para {

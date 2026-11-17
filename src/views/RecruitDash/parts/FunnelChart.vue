@@ -2,12 +2,13 @@
   <div>
     <div class="sec-t">
       招聘流程转化（纵向漏斗）
-      <span style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-weight: 400">
-        <span class="hint" style="margin: 0">计划实施</span>
+      <!-- 不用 gap（旧内核不支持）：间距交给 select 的 margin-left -->
+      <span style="margin-left: auto; display: flex; align-items: center; font-weight: 400">
+        <span class="hint">计划实施</span>
         <select
           class="sel"
           v-model="implModel"
-          style="min-width: 200px"
+          style="min-width: 200px; margin-left: 6px"
           title="仅招聘流程转化跟计划实施绑定：选中具体实施后，漏斗仅统计该实施的投递记录"
         >
           <option value="">全部计划实施</option>

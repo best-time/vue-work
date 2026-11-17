@@ -1,32 +1,48 @@
 <template>
-  <div>
-    <table class="tbl eval-tbl">
-      <thead>
-        <tr>
-          <th>部门</th>
-          <th v-for="g in GRADES" :key="g" :style="{ color: GRADE_COLOR[g] }">{{ g }}级</th>
-          <th>合计</th>
-          <th>通过率</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="row in rows"
-          :key="row.dept"
-          class="eval-tr"
-          :title="'点击查看「' + row.dept + '」等级构成'"
-          :style="dept === row.dept ? 'background: var(--primary-bg)' : ''"
-          @click="pickDept(row.dept)"
-        >
-          <td style="text-align: left"><b>{{ row.dept }}</b></td>
-          <td v-for="g in GRADES" :key="g" :style="{ color: row[g] ? GRADE_COLOR[g] : 'var(--text-3)' }">
-            {{ row[g] || '—' }}
-          </td>
-          <td><b>{{ evalSumOf(row) }}</b></td>
-          <td>{{ rowPass(row) }}%</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="eval-body">
+    <!--
+      部门等级分布表：原型是 <table class="tbl eval-tbl">，这里换 el-table，
+      外观（表头渐变底、只留下边框、首列左对齐、等级配色、选中行高亮）见 dash.scss 的 .eval-etbl。
+      行点击的行为不变：再点一次同一个部门 = 收起。
+      高度与机构视图一致：.eval-fit 吃卡片剩余空间，fitTable 量高度喂 :height ——
+      下面下钻面板展开时，表格会被自动挤矮（flex 重新分配），不会顶出卡片。
+    -->
+    <div ref="fitBox" class="eval-fit">
+      <el-table
+        ref="table"
+        :data="rows"
+        :height="fitHeight"
+        class="eval-etbl"
+        :row-class-name="rowClass"
+        empty-text="暂无可评价部门"
+        @row-click="onRowClick"
+      >
+        <el-table-column prop="dept" label="部门" min-width="240" class-name="c-l" header-class-name="c-l">
+          <template #default="{ row }">
+            <b>{{ row.dept }}</b>
+          </template>
+        </el-table-column>
+
+        <el-table-column v-for="g in GRADES" :key="g" :prop="g" :label="g + '级'" min-width="84" align="center">
+          <template #header>
+            <span :style="{ color: GRADE_COLOR[g] }">{{ g }}级</span>
+          </template>
+          <template #default="{ row }">
+            <span :style="gradeStyle(row, g)">{{ row[g] || "—" }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="合计" min-width="96" align="center">
+          <template #default="{ row }">
+            <b>{{ evalSumOf(row) }}</b>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="通过率" min-width="96" align="center">
+          <template #default="{ row }">{{ rowPass(row) }}%</template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <!-- 选中等级 → 部门分布 -->
     <div v-if="grade" class="eval-detail">
@@ -92,16 +108,25 @@
 
 <script>
 import { GRADES, GRADE_COLOR, evalSumOf } from '../mock'
+import fitTable from '@/mixins/fitTable'
 
 /**
  * 招聘后评价 · 单机构（或单计划实施）部门视图
  * ------------------------------------------------------------
  * 三段下钻都在这一屏里：
- *   部门表 → 点行看「该部门等级构成」；点等级 chip 看「该等级的人员分布部门」；
+ *   部门表（el-table）→ 点行看「该部门等级构成」；点等级 chip 看「该等级的人员分布部门」；
  *   两个下钻面板互不冲突（选等级会清部门，由父级 onGrade 保证）。
+ *
+ * el-table 的选中行不能靠 :style 打（行是组件内部渲染的），
+ * 用 row-class-name 返回 is-picked，样式写在 .eval-etbl 里。
  */
 export default {
   name: 'RcdEvalDeptPanel',
+
+  mixins: [fitTable],
+
+  /** 下钻面板全展开时表格会被挤矮，但别低于这个值 */
+  fitTableMinHeight: 160,
 
   props: {
     rows: { type: Array, default: () => [] },
@@ -145,6 +170,16 @@ export default {
     rowPass(row) {
       const t = evalSumOf(row)
       return t ? Math.round(((t - row.D) / t) * 100) : 0
+    },
+    gradeStyle(row, g) {
+      if (!row[g]) return { color: 'var(--text-3)' }
+      return { color: g === 'D' ? 'var(--danger)' : GRADE_COLOR[g] }
+    },
+    rowClass({ row }) {
+      return this.dept && this.dept === row.dept ? 'eval-tr is-picked' : 'eval-tr'
+    },
+    onRowClick(row) {
+      this.pickDept(row.dept)
     },
     pickDept(dept) {
       // 再点一次同一个部门就是收起

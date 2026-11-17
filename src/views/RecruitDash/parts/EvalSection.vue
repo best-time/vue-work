@@ -1,5 +1,5 @@
 <template>
-  <div class="card tone-amber">
+  <div class="card tone-amber eval-card">
     <div class="card-h">
       <h3>招聘后评价</h3>
       <span class="hint">
@@ -9,7 +9,7 @@
     <div class="card-b">
       <!-- 计划实施选择器：评价流程由所选计划实施确定 -->
       <div class="eval-scope">
-        <span class="hint" style="margin: 0">计划实施</span>
+        <span class="hint">计划实施</span>
         <select
           class="sel"
           v-model="implModel"
@@ -42,9 +42,11 @@
         </span>
       </div>
 
-      <!-- 等级筛选 chips -->
+      <!-- 等级筛选 chips；容器用 `> *:not(:last-child){margin-right:6px}` 表达原 gap，
+           「考核等级」比别的 chip 再远 2px（原 gap 6 + 本行 2），inline 优先级高于类规则，
+           所以这里直接写合并后的 8px -->
       <div class="eval-grade-row">
-        <span class="hint" style="margin-right: 2px">考核等级</span>
+        <span class="hint" style="margin-right: 8px">考核等级</span>
         <button v-for="g in GRADES" :key="g" class="tag" :style="gradeChipStyle(g)" @click="toggleGrade(g)">
           {{ g }}级 {{ es.cnt[g] }}人
         </button>
