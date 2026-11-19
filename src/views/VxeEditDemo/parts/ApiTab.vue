@@ -91,6 +91,7 @@
 <script>
 import { createStaff, money, DEPT_OPTIONS } from "../mock";
 import { pickValidError } from "../validateResult";
+import { vxeClearEdit, vxeSetEditCell } from "../vxeApi";
 import logMixin from "./logMixin";
 
 export default {
@@ -130,7 +131,7 @@ export default {
   methods: {
     money,
 
-    /** 代码打开某一格：setEditCell(row, field)，内部会先滚到可视区再聚焦 */
+    /** 代码打开某一格：setEditCell(row, field)（3.5.6 叫 setActiveCell），内部会先滚到可视区再聚焦 */
     editCell(rowIndex, field) {
       const row = this.rows[rowIndex];
       if (!row) return;
@@ -138,11 +139,11 @@ export default {
         this.push(`第 ${rowIndex + 1} 行是锁定的，代码也进不去`);
         return;
       }
-      this.$refs.table.setEditCell(row, field);
+      vxeSetEditCell(this.$refs.table, row, field);
     },
 
     clearEdit() {
-      this.$refs.table.clearEdit();
+      vxeClearEdit(this.$refs.table);
       this.push("clearEdit()：退出编辑态");
     },
 

@@ -1,11 +1,13 @@
 /**
- * VxeTable 公共组件入口（基于 vxe-table 3.6.x，Vue 2.6 兼容）
+ * VxeTable 公共组件入口（基于 vxe-table 3.5.6，Vue 2.6 兼容）
  *
  * 使用：在 main.js 里 `import '@/components/VxeTable'` 即可，
  *       之后模板里可直接用 <vxe-table> / <vxe-grid>，或用封装好的 <CommonTable>。
  *
  * 注意版本：vxe-table 4.x（>=4.7 需 @vxe-ui/core，peer vue ^3.2）是 Vue3 专用，
- *          Vue 2.6 项目必须用 3.6.x。
+ *          Vue 2.6 项目必须用 3.x；本项目在 package.json 里锁定 3.5.6。
+ *          3.5.7 起 setActiveCell/clearActived 改名为 setEditCell/clearEdit，
+ *          业务代码统一走 src/views/VxeEditDemo/vxeApi.js 的兼容层。
  */
 import Vue from 'vue'
 import XEUtils from 'xe-utils'

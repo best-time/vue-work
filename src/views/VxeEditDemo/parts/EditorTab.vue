@@ -155,6 +155,7 @@ import {
   statusMeta,
   DEPT_OPTIONS
 } from "../mock";
+import { vxeClearEdit } from "../vxeApi";
 import logMixin from "./logMixin";
 
 export default {
@@ -178,7 +179,7 @@ export default {
     statusMeta,
 
     closeEdit() {
-      this.$refs.table.clearEdit();
+      vxeClearEdit(this.$refs.table);
     },
 
     onActived({ row, column }) {

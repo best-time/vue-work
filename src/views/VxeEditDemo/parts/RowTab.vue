@@ -141,6 +141,7 @@ import {
   STATUS_OPTIONS
 } from "../mock";
 import { pickValidError } from "../validateResult";
+import { vxeClearEdit, vxeIsEditByRow, vxeSetEditCell } from "../vxeApi";
 import logMixin from "./logMixin";
 
 export default {
@@ -182,11 +183,11 @@ export default {
 
     /**
      * 当前行是否处于编辑态。
-     * isEditByRow 读的是 vxe 内部 editStore.actived（响应式），所以行内按钮能跟着切换。
+     * 读的是 vxe 内部 editStore.actived（响应式），所以行内按钮能跟着切换。
+     * isEditByRow 是 3.5.7+ 的名字，3.5.6 里叫 isActiveByRow（整行模式等价）。
      */
     isEditing(row) {
-      const table = this.$refs.table;
-      return table ? table.isEditByRow(row) : false;
+      return vxeIsEditByRow(this.$refs.table, row);
     },
 
     refresh() {
@@ -216,7 +217,7 @@ export default {
     },
 
     editRow(row) {
-      this.$refs.table.setEditCell(row, "name");
+      vxeSetEditCell(this.$refs.table, row, "name");
     },
 
     /**
@@ -226,21 +227,20 @@ export default {
      * 1. 必须先 clearEdit() 再 validate(row)：整行模式下 $input 是「缓冲模式」
      *    （immediate: false），敲进去的值先存在 column.model 里，退出编辑才写进 row；
      *    直接 validate(row) 校验的是 row 上的旧值。
-     * 2. 3.6 的 validate() 校验失败是 resolve(错误对象)，不是 reject，
+     * 2. 3.5.6 / 3.6 的 validate() 校验失败是 resolve(错误对象)，不是 reject，
      *    所以只能看返回值，不能靠 catch（见 ../validateResult.js）。
      */
     saveRow(row) {
       const table = this.$refs.table;
       const name = row.name || "(空)";
-      table
-        .clearEdit()
+      vxeClearEdit(table)
         .then(() => table.validate(row))
         .then((errMap) => {
           const err = pickValidError(errMap);
           if (err) {
             this.push(`「${name}」校验不通过：${err.message}`);
             // vxe 默认已经会滚到出错格并重新激活（validConfig.autoPos），这里再点一次更稳
-            if (err.field) table.setEditCell(row, err.field);
+            if (err.field) vxeSetEditCell(table, row, err.field);
             return;
           }
           this.refresh();
@@ -261,7 +261,7 @@ export default {
       const table = this.$refs.table;
       const isNew = table.isInsertByRow(row);
       const name = row.name || row.id;
-      table.clearEdit().then(() => {
+      vxeClearEdit(table).then(() => {
         if (isNew) {
           table.remove(row);
           this.push("取消新增行（已移除）");
@@ -292,7 +292,7 @@ export default {
       this.$refs.table.insert(row).then(({ row: inserted }) => {
         this.push(`新增一行，id=${inserted.id}`);
         this.refresh();
-        this.$refs.table.setEditCell(inserted, "name");
+        vxeSetEditCell(this.$refs.table, inserted, "name");
       });
     },
 
@@ -303,8 +303,7 @@ export default {
      */
     saveAll() {
       const table = this.$refs.table;
-      table
-        .clearEdit()
+      vxeClearEdit(table)
         .then(() => table.validate())
         .then((errMap) => {
           const err = pickValidError(errMap);
@@ -328,7 +327,7 @@ export default {
     revertAll() {
       const table = this.$refs.table;
       const inserts = table.getRecordset().insertRecords.slice();
-      table.clearEdit().then(() => {
+      vxeClearEdit(table).then(() => {
         table.revertData();
         // 新增行没有原始快照，revertData 管不了，得单独删
         if (inserts.length) table.remove(inserts);

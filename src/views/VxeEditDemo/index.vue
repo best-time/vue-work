@@ -3,7 +3,10 @@
     <header class="ved__hd">
       <h1 class="ved__title">vxe-table 行内编辑</h1>
       <p class="ved__desc">
-        基于项目里的 <code>vxe-table 3.6.17</code>（Vue 2 兼容版）。
+        基于项目里的 <code>vxe-table 3.5.6</code>（package.json 已锁定该版本）。
+        方法名差异（3.5.7 起 <code>setActiveCell</code> → <code>setEditCell</code>、
+        <code>clearActived</code> → <code>clearEdit</code>）统一在
+        <code>vxeApi.js</code> 里兼容，页面代码不用跟着改。
         五个页签分别演示：单格编辑、整行编辑、各类编辑器、条件编辑与代码控制，
         以及一个带「确认 / 取消」并模拟调接口保存的 <code>el-input</code> 行内编辑器。
         表格数据都是本地的，「保存」只做模拟提交，不发真实请求。

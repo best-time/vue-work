@@ -138,6 +138,7 @@ import {
   DEPT_OPTIONS
 } from "../mock";
 import { pickValidError } from "../validateResult";
+import { vxeClearEdit, vxeSetEditCell } from "../vxeApi";
 import logMixin from "./logMixin";
 
 export default {
@@ -152,7 +153,7 @@ export default {
       /**
        * 编辑配置（必须！）
        * 只给列写 edit-render 是不够的，没有 edit-config 表格根本不会进入编辑态。
-       *   trigger   'click' | 'dblclick' | 'manual'（manual = 只能代码调 setEditCell）
+       *   trigger   'click' | 'dblclick' | 'manual'（manual = 只能代码调 setEditCell / setActiveCell）
        *   mode      'cell' 单格 | 'row' 整行
        *   showIcon  表头/单元格右侧显示编辑小图标
        *   showStatus 显示脏标记（要求 keep-source）
@@ -245,7 +246,7 @@ export default {
         this.push(`新增一行，id=${inserted.id}`);
         this.refresh();
         // 新增后直接进入编辑，省一次点击
-        this.$refs.table.setEditCell(inserted, "name");
+        vxeSetEditCell(this.$refs.table, inserted, "name");
       });
     },
 
@@ -261,7 +262,7 @@ export default {
       const table = this.$refs.table;
       const count = table.getRecordset().updateRecords.length;
       // 先退出编辑（把编辑中的临时值落盘），再按快照还原，顺序反了会撤不掉
-      table.clearEdit().then(() => {
+      vxeClearEdit(table).then(() => {
         table.revertData().then(() => {
           this.refresh();
           if (count) this.$message.info(`已撤销 ${count} 行的修改`);
@@ -272,20 +273,25 @@ export default {
     /**
      * 保存
      * - 提交前先 clearEdit()（退出编辑，把当前格子的值落盘）+ validate() 校验；
-     *   3.6 的 validate() 校验失败是 resolve 错误对象，不是 reject（见 validateResult.js）
+     *   3.5.6 / 3.6 的 validate() 校验失败是 resolve 错误对象，不是 reject（见 validateResult.js）
      * - getRecordset() 拿三个列表交给后端（新增 / 修改 / 删除）
      * - 成功后用当前数据重载一次：原始快照被重置，脏标记和变更列表一起清空
      */
     save() {
       const table = this.$refs.table;
-      table
-        .clearEdit()
+      vxeClearEdit(table)
         .then(() => table.validate())
         .then((errMap) => {
           const err = pickValidError(errMap);
           if (err) {
             this.push(`保存前校验不通过：${err.message}`);
             this.$message.warning(`还有没填好的地方：${err.message}`);
+            // vxe 的 autoClear 在「点表格外面的按钮」那一下会排一个 setTimeout(clearActived)，
+            // 而校验失败后 autoPos 又把出错格子打开了 —— 它会在下一个宏任务里被关掉。
+            // 这里用同样的 setTimeout 排在它后面，把出错格子重新打开（3.5.6 上稳定复现）。
+            if (err.row) {
+              setTimeout(() => vxeSetEditCell(this.$refs.table, err.row, err.field), 0);
+            }
             return;
           }
 

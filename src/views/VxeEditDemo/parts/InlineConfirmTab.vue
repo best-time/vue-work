@@ -4,31 +4,61 @@
       行内编辑最难的不是「怎么变输入框」，而是<b>编辑中的值存在哪里</b>。
       这里用组件变量 <code>draft</code> 承接输入，<code>row.remark</code>
       在接口返回成功之前一直是旧值 —— 所以「取消」什么都不用做，丢草稿就行；
-      确认则先校验、再调接口，<b>接口成功才写回表格</b>。
-      编辑态下 <b>✓ ✗</b> 悬浮在输入框右侧（输入框吃满整格，只留出 padding-right），
-      回车 = 确认，Esc = 取消。
+      确认则先校验、再调接口，<b>接口成功才写回表格</b>。 编辑态下
+      <b>✓ ✗</b> 悬浮在输入框右侧（输入框吃满整格，只留出 padding-right）， 回车
+      = 确认，Esc = 取消。
     </p>
 
     <p class="vet__tip vet__tip--evt">
-      事件同样分三个：进入编辑 <code>@edit-actived</code>、退出 <code>@edit-closed</code>、
-      被 <code>activeMethod</code> 挡下 <code>@edit-disabled</code>（这组名字 3.5.6 起就没改过，
-      和 <code>setActiveCell</code> 那批方法名不是一回事）。<b>被挡下的那次不发
-      <code>edit-actived</code></b>，所以只监听 actived 会漏掉它 —— 保存中点别的格子，
+      事件同样分三个：进入编辑 <code>@edit-actived</code>、退出
+      <code>@edit-closed</code>、 被 <code>activeMethod</code> 挡下
+      <code>@edit-disabled</code>（这组名字 3.5.6 起就没改过， 和
+      <code>setActiveCell</code> 那批方法名不是一回事）。<b
+        >被挡下的那次不发 <code>edit-actived</code></b
+      >，所以只监听 actived 会漏掉它 —— 保存中点别的格子，
       下面日志里能看到「编辑被拦下」。
     </p>
 
     <p class="vet__tip vet__tip--api">
-      这套代码在 <b>vxe-table 3.5.6 / 3.6.x</b> 上都能跑：<code>setEditCell</code> /
-      <code>clearEdit</code> 是 <b>3.5.7</b> 才改的名，3.5.6 里叫
-      <code>setActiveCell</code> / <code>clearActived</code>；<code>beforeEditMethod</code>
-      同理（3.5.6 叫 <code>activeMethod</code>，3.6.x 两套都认）。下面按<b>方法是否存在</b>挑，
-      不去判断版本号 —— 表格下方的「当前编辑」面板会显示当前实际走的是哪套。
+      这套代码在 <b>vxe-table 3.5.6 / 3.6.x</b> 上都能跑：<code
+        >setEditCell</code
+      >
+      / <code>clearEdit</code> 是 <b>3.5.7</b> 才改的名，3.5.6 里叫
+      <code>setActiveCell</code> / <code>clearActived</code>；<code
+        >beforeEditMethod</code
+      >
+      同理（3.5.6 叫 <code>activeMethod</code>，3.6.x
+      两套都认）。下面按<b>方法是否存在</b>挑， 不去判断版本号 ——
+      表格下方的「当前编辑」面板会显示当前实际走的是哪套。
+    </p>
+
+    <p class="vet__tip vet__tip--flt">
+      备注列表头的漏斗是 vxe 自带的<b>列筛选</b>：按「备注是否为空」单选，点一下即时生效，
+      点第一行的「全部」取消。它和行内编辑有两个交叉点：<b>①</b>
+      点漏斗的那下 <code>mousedown</code> 落在编辑格之外，vxe 的 <code>autoClear</code>
+      会<b>先</b>把编辑关掉（草稿丢弃，日志里是「退出编辑」），之后才应用筛选；
+      <b>②</b> 反过来，如果是<b>代码</b>发起筛选（<code>setFilter</code> +
+      <code>updateData</code>），没有 mousedown，vxe 既不关编辑也不发
+      <code>edit-closed</code>，编辑态会挂在一个已经不在 DOM 里的格子上 ——
+      所以 <code>filter-change</code> 里留了一次兜底，代码路径要自己调一次
+      <code>dropEditIfHidden()</code>。另外保存成功后按当前条件重算一次：
+      在「未填写」里把备注填上，那一行会自己消失。
     </p>
 
     <div class="vet__bar">
       <el-switch v-model="failNext" active-text="让接口报错" />
       <span class="vet__bar-tip">
-        打开这个开关，下一次点「确认」会拿到 504，用来验证<b>失败时不写值、也保持编辑态</b>
+        打开这个开关，下一次点「确认」会拿到 504，用来验证<b
+          >失败时不写值、也保持编辑态</b
+        >
+      </span>
+      <span v-if="filterValue" class="vet__chip">
+        筛选·备注：{{ filterLabel }}
+        <i
+          class="el-icon-close vet__chip-x"
+          title="清除筛选"
+          @click="clearRemarkFilter"
+        />
       </span>
     </div>
 
@@ -42,6 +72,7 @@
       @edit-actived="onActived"
       @edit-closed="onClosed"
       @edit-disabled="onDisabled"
+      @filter-change="onFilterChange"
     >
       <vxe-column type="seq" width="56" title="#" />
       <vxe-column field="name" title="姓名" width="100" />
@@ -52,12 +83,19 @@
       <!--
         可编辑列：edit-render 只给一个空对象（不需要内置控件），
         编辑态完全由 #edit 插槽接管。
+
+        表头筛选：filters + filter-multiple=false（单选，点一下即生效，
+        面板第一行由 vxe 自动补成「全部」）。filter-method 逐个 option 调用，
+        任一返回 true 就保留该行；不写 filters 就不会出现漏斗图标。
       -->
       <vxe-column
         field="remark"
         title="备注（点格子进入编辑）"
         min-width="260"
         :edit-render="{}"
+        :filters="remarkFilters"
+        :filter-multiple="false"
+        :filter-method="remarkFilterMethod"
       >
         <template #default="{ row }">
           <span v-if="row.remark">{{ row.remark }}</span>
@@ -110,7 +148,7 @@
       <!-- 这个字段库里没有，接口返回后要 $set 才会响应式更新 -->
       <vxe-column field="updatedAt" title="最后保存" width="170">
         <template #default="{ row }">
-          <span :class="{ 'vet__ph': !row.updatedAt }">
+          <span :class="{ vet__ph: !row.updatedAt }">
             {{ row.updatedAt || "—" }}
           </span>
         </template>
@@ -187,6 +225,17 @@ export default {
       /** 运行期探测出来的方法名：3.5.6 和 3.5.7+ 不一样，写进面板省得猜 */
       apiMode: "探测中…",
 
+      /**
+       * 备注列的表头筛选项。vxe 会往这些对象上回写 checked，
+       * 所以必须是 data 里的（响应式）数组，别写成行内的字面量。
+       */
+      remarkFilters: [
+        { label: "已填写", value: "filled" },
+        { label: "未填写", value: "empty" },
+      ],
+      /** null | 'filled' | 'empty' —— 只给工具条上的状态条用，筛选状态本身由 vxe 存 */
+      filterValue: null,
+
       editConfig: {
         trigger: "click",
         mode: "cell",
@@ -195,8 +244,8 @@ export default {
         // 用 activeMethod 而不是 beforeEditMethod：3.6.17 里是
         // `editOpts.beforeEditMethod || editOpts.activeMethod`（lib/edit/src/mixin.js），
         // 两套都认；而 3.5.6 只认 activeMethod。这个写法跨版本且不会触发弃用警告。
-        activeMethod: () => !this.saving
-      }
+        activeMethod: () => !this.saving,
+      },
     };
   },
 
@@ -205,9 +254,13 @@ export default {
       this.apiMode = "未探测到表格实例";
       return;
     }
-    this.apiMode = this.tableMethod("setEditCell", "setActiveCell")
-      ? "3.5.7+ · setEditCell / clearEdit"
-      : "3.5.6 · setActiveCell / clearActived";
+    // 注意：不能写成 tableMethod('setEditCell','setActiveCell') ? ... —
+    // 那个函数是「有旧名也算命中」，永远为真，面板就会一直显示 3.5.7+。
+    // 这里必须单独判断「新名字」在不在。
+    this.apiMode =
+      typeof this.$refs.table.setEditCell === "function"
+        ? "3.5.7+ · setEditCell / clearEdit"
+        : "3.5.6 · setActiveCell / clearActived";
   },
 
   computed: {
@@ -223,7 +276,12 @@ export default {
     apiText() {
       if (!this.lastApi) return "还没有调用过接口";
       return JSON.stringify(this.lastApi, null, 2);
-    }
+    },
+    /** 工具条上那颗状态胶囊的文案 */
+    filterLabel() {
+      const hit = this.remarkFilters.find((f) => f.value === this.filterValue);
+      return hit ? hit.label : "全部";
+    },
   },
 
   methods: {
@@ -258,11 +316,13 @@ export default {
     },
 
     onActived({ row, column }) {
+      console.log(row);
+      console.log(column);
       // 只有备注列配了 edit-render，所以这里必然是从备注列进来的
       this.editing = {
         id: row.id,
         name: row.name,
-        origin: row.remark || ""
+        origin: row.remark || "",
       };
       this.draft = row.remark || "";
       this.push(`进入编辑：${row.name} · ${column.title}`);
@@ -283,13 +343,64 @@ export default {
      * 用 id 比对：切到下一格时 actived 可能先于 closed 到达，
      * 无脑清空会把新格子的状态（刚设好的 editing）清掉。
      */
-    onClosed({ row }) {
+    onClosed({ row, column }) {
+      console.log(row, 111);
+      console.log(column, 222, this.draft);
       if (!this.editing || this.editing.id !== row.id) return;
       const dropped = this.draft.trim() !== (this.editing.origin || "");
       this.editing = null;
       this.draft = "";
       // 点页面别处会走这里（autoClear 默认开），草稿就没了，值得记一条
       this.push(dropped ? "退出编辑：未确认的草稿已丢弃" : "退出编辑");
+    },
+
+    /* ------------------------- 表头筛选 ------------------------- */
+
+    /**
+     * 备注列的筛选规则：按「有没有填」分。
+     * vxe 会把每个选中的 option 依次传进来，任一返回 true 该行就保留；
+     * 单选模式下只会有一个 option 被选中，等价于「按它判断」。
+     */
+    remarkFilterMethod({ value, cellValue }) {
+      const filled = String(cellValue == null ? "" : cellValue).trim() !== "";
+      if (value === "filled") return filled;
+      if (value === "empty") return !filled;
+      return true;
+    },
+
+    onFilterChange({ column, values }) {
+      this.filterValue = values.length ? values[0] : null;
+      this.push(`筛选「${column.title}」→ ${this.filterLabel}`);
+      this.$nextTick(this.dropEditIfHidden);
+    },
+
+    /**
+     * 兜底：筛选后正在编辑的行可能已经不在结果里了。
+     *
+     * vxe 换完数据既不会关编辑态、也不会发 edit-closed，editing / draft
+     * 会挂在一个已经不在 DOM 里的格子上。
+     *
+     * 注意真实点漏斗的那条路径其实走不到这里：mousedown 落在编辑格之外，
+     * autoClear 先关了编辑（日志「退出编辑」）。真正需要它的是没有 mousedown 的路径
+     * —— 代码调 setFilter + updateData（vxe 的 setFilter 也不抛 filter-change，
+     * 那种场景要自己调一次本方法）。
+     */
+    dropEditIfHidden() {
+      if (!this.editing || !this.$refs.table) return;
+      // visibleData = 筛选/排序之后真正渲染的行
+      const visible = this.$refs.table.getTableData().visibleData;
+      if (visible.some((r) => r.id === this.editing.id)) return;
+      this.push(`「${this.editing.name}」被筛掉，编辑态自动关闭（草稿丢弃）`);
+      this.closeEdit();
+    },
+
+    /** 工具条上的 × ：clearFilter 内部只 updateData，不发 filter-change，状态得自己清 */
+    clearRemarkFilter() {
+      const table = this.$refs.table;
+      if (table && table.clearFilter) table.clearFilter();
+      this.filterValue = null;
+      this.push("清除筛选：显示全部");
+      this.$nextTick(this.dropEditIfHidden);
     },
 
     focusInput() {
@@ -314,7 +425,9 @@ export default {
       const changed = row && this.draft.trim() !== (row.remark || "");
       this.push(
         changed
-          ? `取消：草稿「${this.draft}」丢弃，原值仍是「${row.remark || "（空）"}」`
+          ? `取消：草稿「${this.draft}」丢弃，原值仍是「${
+              row.remark || "（空）"
+            }」`
           : "取消：没有改动"
       );
       this.closeEdit();
@@ -362,12 +475,21 @@ export default {
           status: 200,
           payload,
           response: res,
-          cost: Date.now() - t0
+          cost: Date.now() - t0,
         };
 
         this.push(`接口成功：remark = 「${res.data.remark}」`);
         this.$message.success("已保存（模拟接口）");
         this.closeEdit();
+        // 筛选开着时，改完的值可能已经不满足条件（在「未填写」里填上了备注）。
+        // vxe 不会因为数据变了自动重筛，要自己 updateData() 一次。
+        if (this.filterValue) {
+          this.$nextTick(() => {
+            const table = this.$refs.table;
+            if (table && table.updateData) table.updateData();
+            this.push(`按当前筛选（${this.filterLabel}）重新过滤`);
+          });
+        }
       } catch (err) {
         this.lastApi = {
           ok: false,
@@ -376,7 +498,7 @@ export default {
           status: 504,
           payload,
           response: { message: err.message },
-          cost: Date.now() - t0
+          cost: Date.now() - t0,
         };
         this.push(`接口失败：${err.message}（保持编辑态，可重试）`);
         this.$message.error(err.message);
@@ -385,8 +507,8 @@ export default {
         this.saving = false;
         this.$nextTick(this.focusInput);
       }
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -427,15 +549,48 @@ export default {
   line-height: 20px;
   color: #5c6472;
 }
+/* 筛选 × 行内编辑的交叉点：同样是小卡片，但用灰边，免得两个蓝条并排抢眼 */
+.vet__tip--flt {
+  padding: 8px 12px;
+  background: #f7f8fa;
+  border-left: 3px solid #c8ccd4;
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+  line-height: 20px;
+  color: #5c6472;
+}
 .vet__bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
-}.vet__bar-tip {
+}
+.vet__bar-tip {
   font-size: 12px;
   color: #909399;
+}
+/* 有筛选时工具条右侧的状态胶囊（点 × 清除） */
+.vet__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: #eef3ff;
+  color: #326fff;
+  font-size: 12px;
+  line-height: 1;
+}
+.vet__chip-x {
+  cursor: pointer;
+  color: #9db4ee;
+  font-size: 12px;
+}
+.vet__chip-x:hover {
+  color: #326fff;
 }
 .vet__ph {
   color: #c0c4cc;

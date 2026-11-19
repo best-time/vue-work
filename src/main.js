@@ -15,6 +15,8 @@ import '@/components/GridBox' // CSS Grid 非响应式栅格（props 驱动）�
 import '@/components/AppDialog' // el-dialog 轻封装：<app-dialog>，v-model / ref.open() 都支持
 import '@/components/RemoteInput' // 可输入 + 远程搜索 + 选中回填：<remote-input>
 import '@/components/LoadMoreSelect' // el-select 滚动到底加载下一页：<load-more-select>
+import '@/components/InfiniteScroll' // 无限滚动加载（触底拉下一页）：<infinite-scroll>
+import '@/components/VirtualScroll' // 虚拟滚动（只渲染可视区）：<virtual-scroll> / <virtual-scroll-dynamic>
 import '@/components/ConfirmButton' // el-button + loading + 二次确认：<confirm-button>
 
 import '@/utils/skeleton' // 简易骨架屏：v-skeleton 指令 + sk* 占位块工具（运行时注入样式）
